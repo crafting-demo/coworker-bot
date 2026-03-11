@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+tmp/
+
+# Compiled test files
+test-*.js
+test-*.d.ts
+test-*.js.map
+test-*.d.ts.map
+tests/**/*.js
+tests/**/*.d.ts
+tests/**/*.js.map
+tests/**/*.d.ts.map
+
+# Coverage
+
+*.lcov
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# env file
+.env
+
+# Config files with secrets
+config/watcher.yaml
+config/*.local.yaml
+
+# Wizard-generated template (user-specific)
+templates/setup-generated.yaml
+
+# Local customizations (user-specific, not tracked)
+_local/
+
+# Editor/IDE
+# .idea/
+# .vscode/
+
+
+samples

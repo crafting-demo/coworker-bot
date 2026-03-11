@@ -1,0 +1,220 @@
+# =============================================================================
+# coworker-bot — GitHub Issue/PR → AI Agent → GitHub PR
+#
+# QUICK START (4 steps before creating this template):
+#   1. Create secrets:    see docs/setup/github.md
+#   2. Fill in env vars:  edit GITHUB_BOT_USERNAME and GITHUB_REPOSITORIES below
+#   3. Create template:   cs template create coworker-bot ./docs/examples/templates/coworker-bot-quick-start.yaml
+#   4. Create sandbox:    cs sandbox create coworker-bot -t coworker-bot
+#
+# After sandbox is created:
+#   5. Pin the sandbox:   cs sandbox pin coworker-bot  (keeps it running 24/7)
+#   6. Authorize MCP:     Web Console → Connect → LLM → Discovery → Authorize
+#   7. Set GitHub webhook: see docs/setup/github.md
+#
+# For multi-provider (GitHub + Linear + Slack), see templates/coworker-bot-full.yaml
+# =============================================================================
+
+env:
+  # ---------------------------------------------------------------------------
+  # Secrets — create these before applying the template:
+  #   echo "YOUR_TOKEN" | cs secret create github-pat --shared -f -
+  #   echo "$(openssl rand -hex 32)" | cs secret create github-webhook-secret --shared -f -
+  #
+  # MUST set both secrets as "Admin Only" + "Not Mountable" in the Crafting
+  # Web Console (Secrets → Edit) so they are never written to the filesystem.
+  # ---------------------------------------------------------------------------
+  - GITHUB_PERSONAL_ACCESS_TOKEN=${secret:github-pat}
+  - GITHUB_WEBHOOK_SECRET=${secret:github-webhook-secret}
+
+  # ---------------------------------------------------------------------------
+  # Required configuration — fill these in before creating the template.
+  # ---------------------------------------------------------------------------
+
+  # The GitHub username of the bot account that posts comments.
+  # Optional — auto-detected from the PAT if not set (via GET /user).
+  # MUST be a dedicated bot account, not your personal account.
+  # - GITHUB_BOT_USERNAME=your-bot-github-username
+
+  # Repositories to monitor, comma-separated: owner/repo1,owner/repo2
+  # Optional — auto-detected from the PAT if not set (fine-grained PATs return
+  # only their scoped repos via GET /user/repos).
+  # - GITHUB_REPOSITORIES=owner/repo
+
+  # ---------------------------------------------------------------------------
+  # Optional tuning — safe to leave as-is for most setups.
+  # ---------------------------------------------------------------------------
+
+  # Polling interval in seconds (default: 60). Increase to reduce API usage.
+  # - GITHUB_POLLING_INTERVAL=60
+
+  # Override the command run for each event. Default runs a Crafting Coding Agent.
+  # EVENT_SHORT_ID is a unique per-event ID (e.g. "github-owner-repo-123-abc456").
+  # - WATCHER_COMMAND=cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task
+
+  # Log level: debug | info | warn | error (default: info)
+  # - WATCHER_LOG_LEVEL=info
+
+endpoints:
+  # ---------------------------------------------------------------------------
+  # Public webhook endpoint — receives events pushed from GitHub.
+  #
+  # Use this URL when configuring your GitHub webhook:
+  #   https://webhook--<sandbox-name>-<org>.sandboxes.site/webhook/github
+  #
+  # Find the exact URL: Web Console → Sandbox → Endpoints → "webhook"
+  #
+  # auth_proxy MUST be disabled — GitHub sends unauthenticated POST requests.
+  # ---------------------------------------------------------------------------
+  - name: webhook
+    http:
+      routes:
+        - backend:
+            target: dev
+            port: webhook
+          path_prefix: /
+      auth_proxy:
+        disabled: true
+
+  # ---------------------------------------------------------------------------
+  # Internal MCP endpoint — used by Crafting Coding Agents inside this sandbox.
+  # type: INTERNAL means it is not publicly accessible.
+  # auth_proxy is disabled because the mcp-proxy container handles auth.
+  # ---------------------------------------------------------------------------
+  - name: github-mcp
+    type: INTERNAL
+    http:
+      routes:
+        - backend:
+            target: mcp-proxy
+            port: github
+          path_prefix: /
+      auth_proxy:
+        disabled: true
+      path: /mcp
+
+workspaces:
+  - name: dev
+    ports:
+      # The watcher listens on port 3000 for incoming webhook events.
+      - name: webhook
+        port: 3000
+        protocol: HTTP/TCP
+
+    checkouts:
+      # The coworker-bot repo is checked out here on sandbox creation.
+      # The watcher daemon (below) runs from this directory.
+      - path: coworker-bot
+        repo:
+          git: git@github.com:crafting-demo/coworker-bot.git
+        manifest:
+          overlays:
+            - inline:
+                hooks:
+                  post-checkout:
+                    cmd: pnpm install
+                daemons:
+                  watcher:
+                    run:
+                      cmd: pnpm start
+      # -----------------------------------------------------------------------
+      # ADVANCED: watcher.yaml file injection (optional)
+      #
+      # For most setups the env vars above are sufficient — the watcher
+      # auto-configures from them and no watcher.yaml is needed.
+      #
+      # IMPORTANT: overwrite: true means this file is re-written on every
+      # sandbox start. Edit config here in the template, not inside the sandbox.
+      # -----------------------------------------------------------------------
+    system: 
+      files:
+        - path: ~/coworker-bot/config/watcher.yaml
+          mode: "0644"
+          overwrite: true
+          content: |
+            server:
+              host: 0.0.0.0
+              port: 3000
+            commandExecutor:
+              enabled: true
+              command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
+              promptTemplateFile: ./config/event-prompt.hbs
+              useStdin: true
+              followUp: true
+            deduplication:
+              enabled: true
+              commentTemplate: "Agent is working on {id}"
+            providers:
+              github:
+                enabled: true
+    restriction:
+      life_time: ALWAYS
+containers:
+  # ---------------------------------------------------------------------------
+  # GitHub MCP server — exposes GitHub tools (issues, PRs, repos) to Sandbox Coding Agent.
+  # The token is NOT set here; it is injected as an Authorization header by the
+  # mcp-proxy container, so this container never holds the secret directly.
+  #
+  # GITHUB_TOOLSETS controls which tool groups are available to the agent.
+  # Available sets: repos, issues, pull_requests, code_security, orgs, ...
+  # Remove sets you don't need to reduce the tool surface area.
+  # ---------------------------------------------------------------------------
+  - name: github-mcp
+    image: ghcr.io/github/github-mcp-server
+    args:
+      - http
+    env:
+      - GITHUB_TOOLSETS=repos,issues,pull_requests
+    ports:
+      - name: github
+        port: 8082
+        protocol: HTTP/TCP
+
+  # ---------------------------------------------------------------------------
+  # nginx reverse proxy — sits in front of the GitHub MCP server.
+  # Adds the Authorization header before forwarding requests.
+  #
+  # The nginx config is injected from the volume above. ${GITHUB_PERSONAL_ACCESS_TOKEN}
+  # is substituted by the nginx:alpine image's built-in entrypoint (envsubst),
+  # which processes all *.conf.template files in /etc/nginx/templates/ at startup.
+  # ---------------------------------------------------------------------------
+  - name: mcp-proxy
+    image: nginx:alpine
+    env:
+      # This env var is used by envsubst inside the nginx config template.
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${secret:github-pat}
+    ports:
+      - name: github
+        port: 8082
+        protocol: HTTP/TCP
+    volume_mounts:
+      - name: inline-volume
+        path: /etc/nginx/templates/default.conf.template
+        from:
+          volume:
+            name: inline-volume
+            content:
+              text: |
+                server {
+                  listen 8082;
+                  location /mcp {
+                    proxy_set_header Authorization "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}";
+                    proxy_set_header Host github-mcp;
+                    proxy_pass http://github-mcp:8082/mcp;
+                    proxy_http_version 1.1;
+                    proxy_buffering off;
+                  }
+                }
+
+# =============================================================================
+# MCP server registration — makes GitHub tools available to all Crafting LLM
+# sessions running inside this sandbox.
+#
+# REQUIRED MANUAL STEP after creating the sandbox:
+#   Web Console → Connect → LLM → Discovery tab → click "Authorize"
+#
+# Without this step, Coding Agent sessions cannot use GitHub MCP tools.
+# =============================================================================
+customizations:
+  - mcp_server:
+      endpoint: github-mcp

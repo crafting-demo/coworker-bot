@@ -1,0 +1,147 @@
+env:
+  - GITHUB_PERSONAL_ACCESS_TOKEN=${secret:github-pat}
+  - GITHUB_WEBHOOK_SECRET=${secret:github-webhook-secret}
+  - GITHUB_BOT_USERNAME=your-bot-github-username
+  - GITHUB_REPOSITORIES=owner/repo
+  - SLACK_BOT_TOKEN=${secret:slack-bot-token}
+  - SLACK_SIGNING_SECRET=${secret:slack-signing-secret}
+  - SLACK_MCP_XOXB_TOKEN=${secret:slack-bot-token}
+
+endpoints:
+  - name: webhook
+    http:
+      routes:
+        - backend:
+            target: dev
+            port: webhook
+          path_prefix: /
+      auth_proxy:
+        disabled: true
+  - name: github-mcp
+    type: INTERNAL
+    http:
+      routes:
+        - backend:
+            target: mcp-proxy
+            port: github
+          path_prefix: /
+      auth_proxy:
+        disabled: true
+      path: /mcp
+  - name: slack-mcp
+    type: INTERNAL
+    http:
+      routes:
+        - backend:
+            target: slack-mcp
+            port: slack
+          path_prefix: /
+      auth_proxy:
+        disabled: true
+      path: /sse
+
+workspaces:
+  - name: dev
+    ports:
+      - name: webhook
+        port: 3000
+        protocol: HTTP/TCP
+    checkouts:
+      - path: coworker-bot
+        repo:
+          git: git@github.com:crafting-demo/coworker-bot.git
+        manifest:
+          overlays:
+            - inline:
+                hooks:
+                  post-checkout:
+                    cmd: pnpm install
+                daemons:
+                  watcher:
+                    run:
+                      cmd: pnpm start
+
+    system:
+      files:
+        - path: ~/coworker-bot/config/watcher.yaml
+          mode: "0644"
+          overwrite: true
+          content: |
+            server:
+              host: 0.0.0.0
+              port: 3000
+            commandExecutor:
+              enabled: true
+              command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
+              promptTemplateFile: ./config/event-prompt.hbs
+              useStdin: true
+              followUp: true
+            deduplication:
+              enabled: true
+              commentTemplate: "Agent is working on {id}"
+            providers:
+              github:
+                enabled: true
+              slack:
+                enabled: true
+    restriction:
+      life_time: ALWAYS
+
+containers:
+  - name: github-mcp
+    image: ghcr.io/github/github-mcp-server
+    args:
+      - http
+    env:
+      - GITHUB_TOOLSETS=repos,issues,pull_requests
+    ports:
+      - name: github
+        port: 8082
+        protocol: HTTP/TCP
+  - name: mcp-proxy
+    image: nginx:alpine
+    env:
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${secret:github-pat}
+    ports:
+      - name: github
+        port: 8082
+        protocol: HTTP/TCP
+    volume_mounts:
+      - name: inline-volume
+        path: /etc/nginx/templates/default.conf.template
+        from:
+          volume:
+            name: inline-volume
+            content:
+              text: |
+                server {
+                  listen 8082;
+                  location /mcp {
+                    proxy_set_header Authorization "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}";
+                    proxy_set_header Host github-mcp;
+                    proxy_pass http://github-mcp:8082/mcp;
+                    proxy_http_version 1.1;
+                    proxy_buffering off;
+                  }
+                }
+  - name: slack-mcp
+    image: ghcr.io/korotovsky/slack-mcp-server:latest
+    entrypoint:
+      - mcp-server
+    args:
+      - --transport
+      - sse
+    env:
+      - SLACK_MCP_PORT=8081
+      - SLACK_MCP_HOST=0.0.0.0
+    ports:
+      - name: slack
+        port: 8081
+        protocol: HTTP/TCP
+
+customizations:
+  - mcp_server:
+      endpoint: github-mcp
+  - mcp_server:
+      protocol: SSE
+      endpoint: slack-mcp

@@ -1,0 +1,255 @@
+# Watcher Configuration Example
+# Copy this file to watcher.yaml and update with your values
+
+# Server configuration for webhook endpoints
+server:
+  host: 0.0.0.0
+  port: 3000
+  # Optional base path for all webhook endpoints
+  # If set, webhooks will be available at: http://host:port{basePath}/webhook/{provider}
+  # Example: basePath: /api → webhooks at http://host:3000/api/webhook/github
+  # basePath: /api
+
+# Event deduplication configuration
+# Prevents duplicate work by skipping events where the bot already commented
+# How it works: Checks the last comment on issues/PRs/threads - if it's from
+# the configured bot username, the event is skipped (considered already handled)
+# Bot username configuration is provider-specific (see each provider's options)
+deduplication:
+  enabled: true
+
+  # Comment template (optional)
+  # Use {id} placeholder for event display (e.g., "owner/repo#123")
+  # This comment is posted when the bot starts working on an event
+  commentTemplate: "Agent is working on {id}"
+
+# Log level: debug | info | warn | error
+logLevel: info
+
+# Command executor configuration
+# When enabled, executes a command for each event with the prompt and event data
+commandExecutor:
+  enabled: false  # Set to true to enable command execution
+
+  # Dry-run mode: Print command without executing (for testing/debugging)
+  dryRun: false  # Set to true to see what would be executed without running it
+
+  # Command to execute (required if enabled)
+  # The command receives minimal environment variables:
+  #
+  # - EVENT_ID: Full event identifier (e.g., "github:owner/repo:opened:123:uuid")
+  # - EVENT_SAFE_ID: Sanitized ID safe for shell (e.g., "github_owner_repo_opened_123_uuid")
+  # - EVENT_SHORT_ID: Short, unique ID (e.g., "github-owner-repo-123-abc123") RECOMMENDED
+  #   Format: provider-repo-number-hash
+  #   Examples:
+  #     - Issue #123: "github-owner-repo-123-abc123"
+  #     - PR #123: "github-owner-repo-123-def456"
+  #     - Comment on PR #123: "github-owner-repo-123-ghi789"
+  #     - Linear issue: "linear-ENG-456-jkl012"
+  #   Hash suffix (6 chars from event ID) ensures uniqueness for all events
+  # - PROMPT: Rendered prompt with all event details (if promptTemplateFile provided and useStdin=false)
+  #
+  # All event context (provider, type, action, title, URL, etc.) is included in the PROMPT
+  # which is rendered from the promptTemplateFile template.
+  #
+  # Use EVENT_SHORT_ID for command/session names (guaranteed unique per event)
+  command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
+
+  # Prompt template configuration (optional)
+  # There are three ways to configure prompt templates:
+
+  # Option 1: Single template file (RECOMMENDED - works for all current providers)
+  # GitHub and Linear are code platforms with similar workflows:
+  # promptTemplateFile: ./config/event-prompt.hbs
+
+  # Option 2: Provider-specific templates (for setups with different platform workflows)
+  # Use this when you have providers with fundamentally different workflows:
+  # prompts:
+  #   slack: ./config/event-prompt-slack.hbs  # Slack's conversational workflow
+  # promptTemplateFile: ./config/event-prompt.hbs  # Fallback for GitHub/Linear
+
+  # Option 3: Inline template (not recommended, use files instead)
+  # promptTemplate: |
+  #   Issue: {{resource.title}}
+  #   Action: {{action}}
+  #   Repository: {{resource.repository}}
+
+  # Pass prompt via stdin instead of environment variable (default: false)
+  # If true, prompt is sent to command's stdin; if false, via $PROMPT env var
+  useStdin: false
+
+  # Post command output as follow-up comment (default: false)
+  # If true, posts a new comment with the command output after execution
+  # If false, only posts the initial comment
+  followUp: false
+
+  # Template for the follow-up comment (optional, only used when followUp: true)
+  # Use {output} placeholder for the command's stdout.
+  # Useful for surfacing a link to the newly created session or resource.
+  # If not set, the raw command output is posted as-is.
+  # Example: "Agent session started. View progress: {output}"
+  # followUpTemplate: "Session started: {output}"
+
+# Provider configurations
+providers:
+  # GitHub Provider
+  github:
+    enabled: true
+
+    # Webhook mode is always enabled for receiving events from GitHub
+    # (Implement your own security/authentication at the reverse proxy or API gateway level)
+
+    # Polling configuration (optional - enables polling mode if auth + repositories are provided)
+    pollingInterval: 60  # Polling interval in seconds
+
+    # Authentication (required for polling mode and comment-based deduplication)
+    auth:
+      type: token
+
+      # Option 1: Direct token (not recommended for production)
+      # token: ghp_your_token_here
+
+      # Option 2: From environment variable (recommended)
+      tokenEnv: GITHUB_PERSONAL_ACCESS_TOKEN
+
+      # Option 3: From file
+      # tokenFile: /path/to/token.txt
+
+      # Option 4: Interpolate from environment in YAML
+      # token: ${GITHUB_TOKEN}
+
+    # GitHub-specific options
+    options:
+      # Webhook secret for signature verification (optional but recommended for production)
+      # GitHub signs webhook payloads with HMAC SHA-256 using this secret
+      # Configure the same secret in your GitHub webhook settings
+      # You can provide the secret directly, via environment variable, or from a file
+      # webhookSecret: "your-secret-here"
+      webhookSecretEnv: GITHUB_WEBHOOK_SECRET
+      # webhookSecretFile: /path/to/secret/file
+
+      # Bot username(s) for deduplication (required)
+      # Activity from these users will be skipped to prevent duplicate work
+      # If the last comment on an issue/PR is by any of these users, the event is skipped
+      # Can be a single string or array of GitHub usernames
+      botUsername: coworker-bot-bot
+      # Multiple usernames (if you have multiple bot accounts):
+      # botUsername:
+      #   - "coworker-bot-bot"
+      #   - "backup-bot"
+
+      # Repositories to monitor (required for polling mode)
+      repositories:
+        - owner/repo1
+        - owner/repo2
+
+      # Initial lookback period for first poll (optional, default: 1 hour)
+      # When first polling a repository, only fetch items from the last N hours
+      # This prevents overwhelming the system with hundreds of old issues
+      # Examples: 1 (1 hour, default), 6 (6 hours), 24 (1 day), 168 (1 week)
+      initialLookbackHours: 1
+
+      # Maximum items to process per poll (optional, default: unlimited)
+      # Limits the total number of issues/PRs processed across all repositories
+      # Useful to prevent rate limiting and reduce processing load
+      maxItemsPerPoll: 50
+
+      # Event filtering (optional)
+      # Controls which event types and actions trigger the bot.
+      # If omitted, built-in defaults apply:
+      #   issues:        all actions processed
+      #   pull_request:  skips opened, synchronize, edited, labeled, unlabeled, assigned, unassigned, locked, unlocked
+      #   issue_comment: all actions processed
+      # If present, ONLY listed event types are processed.
+      # Per event type:
+      #   actions     - allowlist; use ['all'] to accept every action (default)
+      #   skipActions - denylist applied after the allowlist
+      # eventFilter:
+      #   issues: {}
+      #   pull_request:
+      #     actions: ['closed', 'reopened', 'review_requested']
+      #   issue_comment: {}
+
+  # Linear Provider (uses GraphQL API)
+  linear:
+    enabled: false
+    pollingInterval: 60  # Poll every 60 seconds
+
+    auth:
+      type: token
+      tokenEnv: LINEAR_API_TOKEN  # API key from Linear settings
+
+    options:
+      # Webhook secret for signature verification (optional but recommended)
+      # webhookSecret: "your-webhook-secret"
+      webhookSecretEnv: LINEAR_WEBHOOK_SECRET
+      # webhookSecretFile: /path/to/secret
+
+      # Bot username(s) for deduplication (required)
+      # Activity from these users will be skipped to prevent duplicate work
+      # If the last comment on an issue is by any of these users, the event is skipped
+      # Linear usernames are typically in the format "john-doe"
+      # Can be a single string or array of Linear usernames
+      botUsername: coworker-bot-bot
+      # Multiple usernames:
+      # botUsername:
+      #   - "coworker-bot-bot"
+      #   - "backup-bot"
+      # Tip: Run with logLevel: debug to see which username format Linear returns
+
+      # Teams to monitor (optional, defaults to all teams)
+      # Team keys are short identifiers like "ENG", "DESIGN", etc.
+      teams:
+        - ENG
+        - PRODUCT
+
+      # Initial lookback period for first poll (default: 1 hour)
+      initialLookbackHours: 1
+
+      # Maximum items to process per poll (default: unlimited)
+      maxItemsPerPoll: 50
+
+      # Event filtering (optional)
+      # If omitted, built-in default applies: Issue events only, skipping done/cancelled/canceled states
+      # states     - allowlist of state names (lowercase); use ['all'] to accept every state (default)
+      # skipStates - denylist applied after the allowlist
+      # eventFilter:
+      #   Issue:
+      #     states: ['all']
+      #     skipStates: ['done', 'cancelled', 'canceled']
+      #   Comment: {}
+
+  # Slack Provider (mention-triggered only)
+  slack:
+    enabled: false
+
+    # Optional: Enable polling to catch missed mentions
+    # Unlike other providers, Slack polling is opt-in via pollingEnabled flag
+    # pollingInterval: 300  # Poll every 5 minutes (only if pollingEnabled=true)
+
+    auth:
+      type: token
+      tokenEnv: SLACK_BOT_TOKEN  # Bot User OAuth Token from Slack app
+
+    options:
+      # Signing secret for webhook verification (recommended)
+      signingSecretEnv: SLACK_SIGNING_SECRET
+
+      # Enable polling fallback (opt-in)
+      # Set to true to search for missed mentions when webhooks fail
+      # Requires search:read scope in Slack app
+      # pollingEnabled: false
+
+      # Initial lookback period for first poll (default: 1 hour)
+      # initialLookbackHours: 1
+
+      # Note: Bot user ID is automatically detected via Slack API
+      # No botUsername configuration is needed for Slack
+      # The bot's user ID is fetched when the provider initializes
+
+      # Event filtering (optional)
+      # Default: only app_mention events are processed
+      # Use eventFilter to change which Slack event types trigger the bot
+      # eventFilter:
+      #   app_mention: {}   # bot is @mentioned (default)
+      #   message: {}       # also handle direct messages

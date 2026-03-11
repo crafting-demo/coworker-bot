@@ -1,0 +1,47 @@
+{
+  "name": "coworker-bot",
+  "version": "1.0.0",
+  "description": "Automated coding assistant that monitors GitHub, Linear, and Slack events, powered by Crafting Sandbox",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "rebuild": "pnpm run clean && pnpm run build",
+    "start": "tsx src/index.ts",
+    "type-check": "tsc --noEmit",
+    "test": "node --import tsx/esm --test tests/test-*.ts",
+    "lint": "eslint src/ tests/",
+    "lint:fix": "eslint src/ tests/ --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crafting-demo/coworker-bot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/crafting-demo/coworker-bot/issues"
+  },
+  "homepage": "https://github.com/crafting-demo/coworker-bot#readme",
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/handlebars": "^4.1.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.3.0",
+    "eslint": "^10.0.3",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.0"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "handlebars": "^4.7.8",
+    "js-yaml": "^4.1.1"
+  }
+}
