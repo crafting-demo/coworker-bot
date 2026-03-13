@@ -26,7 +26,7 @@ export function normalizeWebhookEvent(
 
   const resource: NormalizedEvent['resource'] = {
     number: 0,
-    title: `Message in #${channelId}`,
+    title: `Message in <#${channelId}>`,
     description: history || event.text || '',
     url: '',
     state: 'open',
@@ -82,7 +82,7 @@ export function normalizePolledMention(
 
   const resource: NormalizedEvent['resource'] = {
     number: 0,
-    title: `Message in #${mention.channel}`,
+    title: `Message in <#${mention.channel}>`,
     description: history || mention.text || '',
     url: mention.permalink || '',
     state: 'open',
