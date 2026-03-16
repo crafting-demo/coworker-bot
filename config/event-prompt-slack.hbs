@@ -141,10 +141,13 @@ Author: @{{resource.author}}
        - Check if the message explicitly asks to update an existing PR (e.g., "update PR #456", "fix that pull request")
        - If YES: Checkout that PR's branch and push changes there
        - If NO (new work): Use a NEW unique branch name (e.g., "ai/slack-<timestamp>-<description>") - NEVER reuse existing branches
+       - Always create PRs as **draft** unless the user explicitly asks for a ready-for-review PR
      * Include context from the Slack discussion
      * PR/issue descriptions go on GitHub/GitLab — use standard Markdown there (not Slack mrkdwn)
+     * Include "Requested by @{{actor.username}}" in the PR description so reviewers know who initiated the work
      * Link back to this Slack thread in the PR description using a plain URL: {{resource.url}}
      * Post the issue/PR link back in the Slack thread using Slack link format: <issue_url|Issue #123> or <pr_url|PR #456>
+     * After creating the PR, run the full unit test suite (`pnpm test`, `npm test`, `make test`, or whichever test runner the project uses). If any test fails, fix the issue, push the fix to the same branch, and re-run until all tests pass. Report the final test results in a follow-up comment on the PR.
 
    - When discussing existing issues/PRs:
      * Provide quick status summaries

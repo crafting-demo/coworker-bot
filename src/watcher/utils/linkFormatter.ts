@@ -40,19 +40,13 @@ export function formatLink(text: string, url: string, provider: string): string 
 export function formatResourceLink(event: NormalizedEvent): string {
   const { resource, provider } = event;
 
-  // Special handling for Slack — use channel mention format <#CHANNEL_ID>
+  // Slack: reply lands in the same thread, so channel info adds no value.
+  // Use "your request" (linked to the permalink when available).
   if (provider === 'slack') {
-    const channelMention = resource.repository
-      ? `<#${resource.repository}>`
-      : '';
-
     if (resource.url && resource.url.trim() !== '') {
-      // permalink available: "<permalink|Message> in <#CHANNEL>"
-      const link = formatLink('Message', resource.url, provider);
-      return channelMention ? `${link} in ${channelMention}` : link;
+      return formatLink('your request', resource.url, provider);
     }
-
-    return channelMention ? `Message in ${channelMention}` : 'Slack message';
+    return 'your request';
   }
 
   // Standard format for GitHub/GitLab/Linear (e.g., "owner/repo#123")
