@@ -179,25 +179,6 @@ or explanations like "Here's the completion message" or "The work has been compl
 Output ONLY the final Slack message content — nothing else. The message must be
 ready to appear in Slack exactly as you write it, using Slack mrkdwn formatting.
 
-## Example of a Well-Formatted Slack Response
-
-Below is an example of correct Slack mrkdwn formatting. Study it and follow the same style:
-
-```
-*Summary*
-Increased the `.buildkite` step timeout of kotlin tests in the `credit_card` repo (requested by <@U06CRJ116JZ>).
-
-*Changes Made*
-In `.buildkite/pipelines/kotlin/pipeline.sh`:
-• *test/kotlin* (`:bazel :kotlin: test/kotlin-%n`) — 60 min → *90 min*
-• *kotlin-diff tests* (`:kotlin: kotlin-diff tests`) — 20 min → *30 min*
-
-*Pull Request Created*
-• *PR*: <https://github.com/brexhq/credit_card/pull/291596|#291596>
-• *Branch*: `ai/increase-kotlin-test-timeouts-v3`
-• *Commit*: `aecb7a607` — "Increase .buildkite kotlin test step timeouts"
-```
-
 ---
 
 *Next Steps*: Analyze the message above and provide an appropriate response following these guidelines.
