@@ -88,7 +88,7 @@ Author: @{{resource.author}}
 ## Instructions
 
 - Analyze the message content to understand what is being requested or discussed
-  - Always use the ai-agent template
+  - If a github repo is provided, try to find the best template to create sandbox
   - The sandbox name should be in the format "ai-<UUID>" — generate a random UUID (not human-readable, not derived from the issue/repo name), truncated to 16 characters max (sandbox name max length is 20)
 - Determine the appropriate response type:
   - **Question**: Provide a helpful, accurate answer
@@ -106,45 +106,9 @@ Author: @{{resource.author}}
    - Tag relevant people using @username if their input is needed
    - Don't over-mention; only tag when truly necessary
 
-3. **Formatting — use the right syntax for each platform**:
-
-   **IMPORTANT**: The formatting rules below apply ONLY when writing Slack messages
-   (thread replies, channel posts). When creating or commenting on GitHub/GitLab
-   PRs, issues, or commits, use standard Markdown (`## Heading`, `**bold**`,
-   `[text](url)`, etc.) — those platforms render Markdown, not Slack mrkdwn.
-
-   **Slack mrkdwn syntax (for Slack messages only):**
-
-   Text styling:
-   - Bold: `*text*` (single asterisks). NEVER use `**text**` (double asterisks)
-   - Italic: `_text_` (underscores). NEVER use `*text*` when you mean italic — in Slack that's bold
-   - Strikethrough: `~text~`
-   - Inline code: `` `code` `` (backticks — same as Markdown)
-   - Code blocks: wrap in ``` (triple backticks — same as Markdown)
-
-   Headers / sections:
-   - Slack has NO header syntax. NEVER use `#`, `##`, `###`, etc.
-   - Instead, use *bold text* on its own line as a section title, e.g.: `*Summary*`
-
-   Links:
-   - Slack link format: `<https://example.com|display text>`
-   - NEVER use Markdown link syntax `[text](url)` in Slack messages
-
-   Lists:
-   - Bullet points: use `•` or `- ` at the start of a line
-   - Numbered lists: use `1.`, `2.`, etc.
-   - Nested lists: indent with spaces
-
-   Tables:
-   - Slack does NOT render Markdown tables (`| col | col |`). NEVER use pipe-based table syntax.
-   - Instead, present tabular data as a formatted list or use a code block for alignment:
-     ```
-     Step            Previous    New
-     test/kotlin     60 min      90 min
-     kotlin-diff     20 min      30 min
-     ```
-
-   General rules (all platforms):
+3. **Formatting** — use the right markup for each destination:
+   - **Slack messages** (thread replies, status updates): Use Slack mrkdwn (`*bold*`, `_italic_`, `` `code` ``, `• ` for bullets, `<url|text>` for links)
+   - **GitHub/GitLab content** (PR descriptions, issue bodies, comments): Use standard Markdown (`**bold**`, `*italic*`, `` `code` ``, `- ` for bullets, `[text](url)` for links)
    - Keep responses concise and scannable
    - Use bullet points for multiple items
    - Use numbered lists for sequential steps
