@@ -38,7 +38,7 @@ endpoints:
           path_prefix: /
       auth_proxy:
         disabled: true
-      path: /sse
+      path: /mcp
 
 workspaces:
   - name: dev
@@ -130,7 +130,7 @@ containers:
       - mcp-server
     args:
       - --transport
-      - sse
+      - http
     env:
       - SLACK_MCP_PORT=8081
       - SLACK_MCP_HOST=0.0.0.0
@@ -143,5 +143,4 @@ customizations:
   - mcp_server:
       endpoint: github-mcp
   - mcp_server:
-      protocol: SSE
       endpoint: slack-mcp

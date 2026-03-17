@@ -156,7 +156,7 @@ endpoints:
   # ---------------------------------------------------------------------------
   # Slack MCP internal endpoint
   # DELETE if not using Slack.
-  # Uses SSE transport (path: /sse) instead of the default HTTP transport.
+  # Uses streamable HTTP transport.
   # ---------------------------------------------------------------------------
   - name: slack-mcp
     type: INTERNAL
@@ -168,7 +168,7 @@ endpoints:
           path_prefix: /
       auth_proxy:
         disabled: true
-      path: /sse
+      path: /mcp
 
 workspaces:
   - name: dev
@@ -319,7 +319,7 @@ containers:
   # Slack MCP server container
   # DELETE if not using Slack.
   #
-  # Runs the Slack MCP server in SSE transport mode.
+  # Runs the Slack MCP server in http transport mode.
   # SLACK_MCP_XOXB_TOKEN is read from the env block above (same value as SLACK_BOT_TOKEN).
   #
   # To allow the agent to post messages to Slack, set SLACK_MCP_ADD_MESSAGE_TOOL
@@ -332,7 +332,7 @@ containers:
       - mcp-server
     args:
       - --transport
-      - sse
+      - http
     env:
       - SLACK_MCP_PORT=8081
       - SLACK_MCP_HOST=0.0.0.0
@@ -358,9 +358,7 @@ customizations:
       endpoint: github-mcp
 
   # DELETE if not using Slack.
-  # protocol: SSE is required for the Slack MCP server (uses SSE transport).
   - mcp_server:
-      protocol: SSE
       endpoint: slack-mcp
 
   # DELETE if not using Linear.
