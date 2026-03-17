@@ -187,6 +187,23 @@ export class ConfigLoader {
       };
     }
 
+    // Confirmation gate — auto-enabled when CONFIRMATION_ENABLED is set
+    // Credentials are reused from the Slack provider (SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET)
+    if (process.env.CONFIRMATION_ENABLED === 'true') {
+      result.confirmation = {
+        enabled: true,
+      };
+      if (process.env.CONFIRMATION_CHANNEL) {
+        result.confirmation.channel = process.env.CONFIRMATION_CHANNEL;
+      }
+      if (process.env.CONFIRMATION_TIMEOUT_MINUTES) {
+        result.confirmation.timeoutMinutes = parseInt(
+          process.env.CONFIRMATION_TIMEOUT_MINUTES,
+          10
+        );
+      }
+    }
+
     // Command override
     if (process.env.WATCHER_COMMAND) {
       result.commandExecutor = {
@@ -237,6 +254,17 @@ export class ConfigLoader {
         if (ov.followUp !== undefined) result.commandExecutor.followUp = ov.followUp;
         if (ov.followUpTemplate) result.commandExecutor.followUpTemplate = ov.followUpTemplate;
         if (ov.dryRun !== undefined) result.commandExecutor.dryRun = ov.dryRun;
+      }
+    }
+
+    if (override.confirmation) {
+      if (!result.confirmation) {
+        result.confirmation = override.confirmation;
+      } else {
+        const ov = override.confirmation;
+        if (ov.enabled !== undefined) result.confirmation.enabled = ov.enabled;
+        if (ov.channel) result.confirmation.channel = ov.channel;
+        if (ov.timeoutMinutes !== undefined) result.confirmation.timeoutMinutes = ov.timeoutMinutes;
       }
     }
 

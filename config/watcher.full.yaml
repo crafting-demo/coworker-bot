@@ -90,6 +90,34 @@ commandExecutor:
   # Example: "Agent session started. View progress: {output}"
   # followUpTemplate: "Session started: {output}"
 
+# Confirmation gate (optional)
+# When enabled, non-Slack events (e.g. GitHub/GitLab poll) are not executed
+# immediately. Instead, the watcher posts a Slack message with "Address it" /
+# "Skip" buttons. The command only runs when a user clicks "Address it".
+# Unconfirmed events expire after a configurable timeout.
+#
+# Thread routing:
+# When someone @mentions the bot in a Slack thread referencing a PR (e.g.
+# "hey @bot fix owner/repo#123"), the watcher parses the message for GitHub/
+# GitLab references and remembers the Slack thread. Later, when a GitHub poll
+# detects a new comment on that PR, the confirmation is posted in the original
+# Slack thread — keeping the conversation in one place.
+#
+# If no originating thread is known (e.g. the bot was assigned directly on
+# GitHub, not from Slack), the fallback channel is used. If neither exists,
+# the event executes without confirmation.
+#
+# Requires: Slack provider configured (SLACK_BOT_TOKEN), Slack Interactivity enabled.
+# Credentials are reused from the Slack provider — no extra token config needed.
+# confirmation:
+#   enabled: true
+#
+#   # Fallback Slack channel when no originating thread is known (optional)
+#   # channel: "#pr-reviews"
+#
+#   # Minutes to wait before auto-skipping (default: 30)
+#   timeoutMinutes: 30
+
 # Provider configurations
 providers:
   # GitHub Provider

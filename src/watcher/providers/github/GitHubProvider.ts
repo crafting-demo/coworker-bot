@@ -27,6 +27,8 @@ export class GitHubProvider extends BaseProvider {
   private comments: GitHubComments | undefined;
   private token: string | undefined;
   private botUsernames: string[] = [];
+  /** Tracks the newest review comment timestamp processed per PR to avoid re-processing. */
+  private processedReviewTs: Map<string, number> = new Map();
 
   private static readonly DEFAULT_WEBHOOK_EVENTS: Record<string, GitHubEventConfig> = {
     issues: { actions: ['all'], skipActions: [] },
@@ -46,6 +48,7 @@ export class GitHubProvider extends BaseProvider {
       ],
     },
     issue_comment: { actions: ['all'], skipActions: [] },
+    pull_request_review_comment: { actions: ['all'], skipActions: [] },
   };
 
   private eventFilter: Record<string, GitHubEventConfig> = {
@@ -221,6 +224,9 @@ export class GitHubProvider extends BaseProvider {
     } else if (event === 'issue_comment' && payload.issue) {
       resourceType = payload.issue.pull_request ? 'pull_request' : 'issue';
       resourceNumber = payload.issue.number;
+    } else if (event === 'pull_request_review_comment' && payload.pull_request) {
+      resourceType = 'pull_request';
+      resourceNumber = payload.pull_request.number;
     } else {
       logger.debug(`Unsupported GitHub event type: ${event}`);
       return;
@@ -271,12 +277,14 @@ export class GitHubProvider extends BaseProvider {
     event: NormalizedEvent,
     hasRecentComments?: boolean,
     actions: string[] = ['all'],
-    skipActions: string[] = []
+    skipActions: string[] = [],
+    trace = false
   ): boolean {
     const { type, action, resource } = event;
 
     // Allowlist check: skip if action not in allowlist (unless 'all' is present)
     if (!actions.includes('all') && !actions.includes(action)) {
+      if (trace) logger.info(`[TRACE #292063] SKIPPED: action "${action}" not in allowlist [${actions.join(',')}]`);
       logger.debug(
         `Skipping ${type} #${resource.number} ${action} event - not in actions allowlist`
       );
@@ -285,29 +293,39 @@ export class GitHubProvider extends BaseProvider {
 
     // Denylist check
     if (skipActions.includes(action)) {
+      if (trace) logger.info(`[TRACE #292063] SKIPPED: action "${action}" in skipActions [${skipActions.join(',')}]`);
       logger.debug(`Skipping ${type} #${resource.number} ${action} event`);
       return false;
     }
 
     // Assignment/mention filter: only process if bot is involved
     if (this.botUsernames.length === 0) {
+      if (trace) logger.info(`[TRACE #292063] SKIPPED: no botUsernames configured`);
       logger.error(`Skipping ${type} #${resource.number} - botUsername not configured`);
       return false;
     }
     if (resource.comment) {
-      if (!isBotMentionedInText(resource.comment.body, this.botUsernames)) {
+      const mentioned = isBotMentionedInText(resource.comment.body, this.botUsernames);
+      if (trace) logger.info(`[TRACE #292063] Comment check: body="${resource.comment.body.slice(0, 100)}", botUsernames=[${this.botUsernames.join(',')}], mentioned=${mentioned}`);
+      if (!mentioned) {
         logger.debug(`Skipping ${type} #${resource.number} comment - bot not mentioned`);
         return false;
       }
     } else {
-      if (!isBotAssignedInList(resource.assignees, this.botUsernames, (a) => (a as any).login)) {
-        logger.debug(`Skipping ${type} #${resource.number} - bot not assigned`);
+      const assigned = isBotAssignedInList(resource.assignees, this.botUsernames, (a) => (a as any).login);
+      const authored = !!resource.author && this.botUsernames.some(
+        (bot) => bot.toLowerCase() === resource.author!.toLowerCase()
+      );
+      if (trace) logger.info(`[TRACE #292063] Assignment check: assignees=${JSON.stringify(resource.assignees?.map((a: any) => a.login) ?? [])}, author=${resource.author}, botUsernames=[${this.botUsernames.join(',')}], assigned=${assigned}, authored=${authored}`);
+      if (!assigned && !authored) {
+        logger.debug(`Skipping ${type} #${resource.number} - bot not assigned or author`);
         return false;
       }
     }
 
     // For polled events, skip if no recent human interaction
     if (type === 'pull_request' && action === 'poll' && hasRecentComments === false) {
+      if (trace) logger.info(`[TRACE #292063] SKIPPED: no recent human interaction`);
       logger.debug(
         `Skipping polled PR #${resource.number} - only updated due to commits, no new comments`
       );
@@ -316,6 +334,7 @@ export class GitHubProvider extends BaseProvider {
 
     // Skip closed/merged items unless they're being reopened
     if (resource.state === 'closed' && action !== 'reopened') {
+      if (trace) logger.info(`[TRACE #292063] SKIPPED: state is closed/merged`);
       logger.debug(`Skipping closed/merged ${type} #${resource.number}`);
       return false;
     }
@@ -349,13 +368,16 @@ export class GitHubProvider extends BaseProvider {
     }
 
     try {
-      // Check for recent comments (last 5 comments)
-      const comments = await this.comments.listComments(repository, prNumber, 5);
+      const [issueComments, reviewComments] = await Promise.all([
+        this.comments.listComments(repository, prNumber, 5),
+        this.comments.listReviewComments(repository, prNumber, 5),
+      ]);
 
-      // If there are any comments, consider it as having interaction
-      // The deduplication system will handle if the bot already commented
-      if (comments.length > 0) {
-        logger.debug(`PR #${prNumber} has ${comments.length} recent comment(s)`);
+      const total = issueComments.length + reviewComments.length;
+      if (total > 0) {
+        logger.debug(
+          `PR #${prNumber} has ${issueComments.length} issue comment(s) and ${reviewComments.length} review comment(s)`
+        );
         return true;
       }
 
@@ -363,7 +385,6 @@ export class GitHubProvider extends BaseProvider {
       return false;
     } catch (error) {
       logger.warn(`Failed to check comments for PR #${prNumber}`, error);
-      // On error, assume there is interaction to avoid missing important events
       return true;
     }
   }
@@ -385,23 +406,32 @@ export class GitHubProvider extends BaseProvider {
       const repository = item.repository;
       const resourceType = item.type === 'issue' ? 'issue' : 'pull_request';
       const resourceNumber = item.number;
+      // TODO: remove after debugging #292063
+      const trace = resourceNumber === 292063;
+      if (trace) logger.info(`[TRACE #292063] Found in poll results (repo=${repository}, type=${resourceType})`);
 
       const webhookKey = item.type === 'issue' ? 'issues' : 'pull_request';
       const pollEventConfig = this.eventFilter[webhookKey];
       if (!pollEventConfig) {
+        if (trace) logger.info(`[TRACE #292063] SKIPPED: event type "${webhookKey}" not in eventFilter`);
         logger.debug(`Skipping polled ${item.type} - not in configured eventFilter`);
         continue;
       }
+      if (trace) logger.info(`[TRACE #292063] Passed eventFilter check`);
 
       // For PRs, check if there are recent comments to distinguish
       // between commit updates (skip) vs human interaction (process)
       let hasRecentComments: boolean | undefined;
       if (resourceType === 'pull_request') {
         hasRecentComments = await this.hasRecentHumanInteraction(repository, resourceNumber);
+        if (trace) logger.info(`[TRACE #292063] hasRecentHumanInteraction=${hasRecentComments}`);
       }
 
       // Normalize event first to apply shared filtering logic
       const normalizedEvent = normalizePolledEvent(item);
+      if (trace) {
+        logger.info(`[TRACE #292063] Normalized event: action=${normalizedEvent.action}, state=${normalizedEvent.resource.state}, author=${normalizedEvent.resource.author}, assignees=${JSON.stringify(normalizedEvent.resource.assignees?.map((a: any) => a.login) ?? [])}, hasComment=${!!normalizedEvent.resource.comment}`);
+      }
 
       // Apply shared filtering logic (same as webhooks)
       if (
@@ -409,11 +439,13 @@ export class GitHubProvider extends BaseProvider {
           normalizedEvent,
           hasRecentComments,
           pollEventConfig.actions,
-          pollEventConfig.skipActions
+          pollEventConfig.skipActions,
+          trace
         )
       ) {
         continue; // Event filtered out (already logged in shouldProcessEvent)
       }
+      if (trace) logger.info(`[TRACE #292063] Passed shouldProcessEvent`);
 
       logger.debug(`Creating reactor for ${resourceType} #${resourceNumber} in ${repository}`);
 
@@ -425,8 +457,48 @@ export class GitHubProvider extends BaseProvider {
         this.botUsernames
       );
 
-      logger.debug(`Calling event handler for ${resourceType} #${resourceNumber}`);
-      await eventHandler(normalizedEvent, reactor);
+      // For PRs, enrich with the latest review comment and deduplicate
+      // using its timestamp (the Watcher-level dedup is skipped for polled events).
+      if (resourceType === 'pull_request') {
+        const lastReview = await this.comments.getLastReviewComment(repository, resourceNumber);
+        if (trace) logger.info(`[TRACE #292063] lastReviewComment: author=${lastReview?.author}, createdAt=${lastReview?.createdAt?.toISOString()}`);
+
+        if (!lastReview || reactor.isBotAuthor(lastReview.author)) {
+          if (trace) logger.info(`[TRACE #292063] SKIPPED: no review comment or last is from bot`);
+          logger.debug(`Skipping polled PR #${resourceNumber} - no non-bot review comment`);
+          continue;
+        }
+
+        const resKey = `${repository}:${resourceNumber}`;
+        const lastProcessedTs = this.processedReviewTs.get(resKey);
+        const reviewTs = lastReview.createdAt.getTime();
+
+        if (lastProcessedTs && reviewTs <= lastProcessedTs) {
+          if (trace) logger.info(`[TRACE #292063] SKIPPED: review comment already processed (ts=${lastReview.createdAt.toISOString()})`);
+          logger.debug(`Skipping polled PR #${resourceNumber} - review comment already processed`);
+          continue;
+        }
+
+        normalizedEvent.resource.comment = {
+          body: lastReview.body,
+          author: lastReview.author,
+        };
+        // Mark as polled so the Watcher skips its own dedup
+        normalizedEvent.metadata.polled = true;
+
+        logger.debug(`Enriched polled PR #${resourceNumber} with review comment by ${lastReview.author}`);
+        if (trace) logger.info(`[TRACE #292063] Enriched with review comment by ${lastReview.author}: "${lastReview.body.slice(0, 80)}"`);
+
+        logger.debug(`Calling event handler for ${resourceType} #${resourceNumber}`);
+        await eventHandler(normalizedEvent, reactor);
+
+        // Only mark as processed after the event handler succeeds
+        this.processedReviewTs.set(resKey, reviewTs);
+        if (trace) logger.info(`[TRACE #292063] Marked review comment as processed (ts=${lastReview.createdAt.toISOString()})`);
+      } else {
+        logger.debug(`Calling event handler for ${resourceType} #${resourceNumber}`);
+        await eventHandler(normalizedEvent, reactor);
+      }
     }
 
     logger.debug(`Finished processing ${items.length} items from GitHub poll`);

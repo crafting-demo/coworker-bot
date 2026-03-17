@@ -9,6 +9,10 @@ import { createHmac, timingSafeEqual } from 'crypto';
 export class SlackWebhook {
   constructor(private readonly signingSecret?: string) {}
 
+  get hasSigningSecret(): boolean {
+    return !!this.signingSecret;
+  }
+
   /**
    * Validate a Slack webhook request.
    * Handles both URL verification challenges and event callbacks.

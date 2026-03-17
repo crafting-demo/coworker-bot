@@ -15,6 +15,7 @@ export class WebhookServer {
     // Support both JSON and form-encoded webhooks
     this.app.use(
       express.json({
+        limit: '5mb',
         verify: (req, _res, buf) => {
           (req as Request & { rawBody?: Buffer }).rawBody = buf;
         },
@@ -24,6 +25,7 @@ export class WebhookServer {
     this.app.use(
       express.urlencoded({
         extended: true,
+        limit: '5mb',
         verify: (req, _res, buf) => {
           (req as Request & { rawBody?: Buffer }).rawBody = buf;
         },
@@ -61,6 +63,29 @@ export class WebhookServer {
     });
 
     logger.info(`Registered webhook endpoint: ${path}`);
+  }
+
+  /**
+   * Register a generic POST route (not tied to a specific provider).
+   * Path is prefixed with the configured basePath.
+   */
+  registerPostRoute(
+    routePath: string,
+    handler: (req: Request, res: Response) => Promise<void>
+  ): void {
+    const basePath = this.config.basePath || '';
+    const fullPath = `${basePath}${routePath}`;
+
+    this.app.post(fullPath, (req, res) => {
+      handler(req, res).catch((error) => {
+        logger.error(`Error handling route ${fullPath}`, error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Internal server error' });
+        }
+      });
+    });
+
+    logger.info(`Registered route: POST ${fullPath}`);
   }
 
   async start(): Promise<void> {

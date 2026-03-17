@@ -1,3 +1,4 @@
+import type { Request, Response } from 'express';
 import type {
   WatcherConfig,
   IProvider,
@@ -7,6 +8,8 @@ import type {
 } from './types/index.js';
 import { WatcherEventEmitter } from './core/EventEmitter.js';
 import { ProviderRegistry } from './providers/ProviderRegistry.js';
+import { ConfirmationGate, parseResourceReferences } from './core/ConfirmationGate.js';
+import type { SlackProvider } from './providers/slack/SlackProvider.js';
 import { WebhookServer } from './transport/WebhookServer.js';
 import { WebhookHandler } from './transport/WebhookHandler.js';
 import { Poller } from './transport/Poller.js';
@@ -19,6 +22,7 @@ export class Watcher extends WatcherEventEmitter {
   private registry: ProviderRegistry;
   private commentTemplate: string;
   private commandExecutor: CommandExecutor | undefined;
+  private confirmationGate: ConfirmationGate | undefined;
   private server: WebhookServer | undefined;
   private pollers: Map<string, Poller> = new Map();
   private started = false;
@@ -69,6 +73,7 @@ export class Watcher extends WatcherEventEmitter {
 
     try {
       await this.initializeProviders();
+      this.initializeConfirmationGate();
       await this.startWebhookServer();
       await this.startPollers();
 
@@ -91,6 +96,10 @@ export class Watcher extends WatcherEventEmitter {
 
     try {
       this.stopPollers();
+
+      if (this.confirmationGate) {
+        this.confirmationGate.shutdown();
+      }
 
       if (this.server) {
         await this.server.stop();
@@ -141,29 +150,78 @@ export class Watcher extends WatcherEventEmitter {
     }
   }
 
+  private initializeConfirmationGate(): void {
+    if (!this.config.confirmation?.enabled) {
+      return;
+    }
+
+    const slackProvider = this.registry.getAll().get('slack') as SlackProvider | undefined;
+    const comments = slackProvider?.getComments();
+    const webhook = slackProvider?.getWebhook();
+
+    if (!comments || !webhook) {
+      throw new WatcherError(
+        'Confirmation gate requires an initialized Slack provider. ' +
+          'Make sure the Slack provider is enabled and configured with SLACK_BOT_TOKEN.'
+      );
+    }
+
+    if (!webhook.hasSigningSecret) {
+      throw new WatcherError(
+        'Confirmation gate requires SLACK_SIGNING_SECRET to be configured. ' +
+          'The interaction endpoint triggers command execution and must not accept unauthenticated requests.'
+      );
+    }
+
+    this.confirmationGate = new ConfirmationGate(
+      this.config.confirmation,
+      comments,
+      webhook
+    );
+  }
+
   private createEventHandler(providerName: string): EventHandler {
     return async (event: NormalizedEvent, reactor: Reactor) => {
       try {
-        // Check for duplicates using reactor
-        const isDuplicate = await this.isDuplicate(reactor);
+        // Polled events handle their own dedup (e.g., review comment timestamps)
+        // so we skip the issue-comment-based dedup here.
+        if (!event.metadata.polled) {
+          const isDuplicate = await this.isDuplicate(reactor);
 
-        if (isDuplicate) {
-          logger.debug(`Event from ${providerName} is a duplicate, skipping`);
-          return;
+          if (isDuplicate) {
+            logger.debug(`Event from ${providerName} is a duplicate, skipping`);
+            return;
+          }
         }
 
         // Emit event to subscribers
         logger.debug(`Emitting event from ${providerName}`);
         this.emit('event', providerName, event);
 
-        // Execute command if configured
-        if (this.commandExecutor) {
-          // Generate display string from normalized event
-          const displayString = this.generateDisplayString(event);
-          await this.commandExecutor.execute(event.id, displayString, event, reactor);
+        // Build the execution callback
+        const execute = async () => {
+          if (this.commandExecutor) {
+            const displayString = this.generateDisplayString(event);
+            return await this.commandExecutor.execute(event.id, displayString, event, reactor);
+          } else {
+            await this.markAsProcessed(reactor, event);
+            return undefined;
+          }
+        };
+
+        // Route through confirmation gate if enabled, otherwise execute directly.
+        // Webhook events (real-time, explicit user actions) execute directly.
+        // Only polled events (background discovery) require confirmation.
+        if (this.confirmationGate && event.metadata.polled) {
+          await this.confirmationGate.enqueue(event, reactor, execute);
+        } else if (event.provider === 'slack' && this.confirmationGate) {
+          this.registerSlackThreadForReferences(event);
+          const output = await execute();
+          if (output) {
+            this.registerSlackThreadFromOutput(event, output);
+          }
         } else {
-          // If no command executor, mark as processed manually
-          await this.markAsProcessed(reactor, event);
+          await execute();
         }
       } catch (error) {
         logger.error(`Error handling event from ${providerName}`, error);
@@ -228,6 +286,72 @@ export class Watcher extends WatcherEventEmitter {
     }
   }
 
+  /**
+   * When a Slack event is processed, scan its text for GitHub/GitLab
+   * references (URLs or owner/repo#N) and register the Slack thread in
+   * the ConfirmationGate so that future events on those resources are
+   * confirmed in the originating Slack thread.
+   */
+  private registerSlackThreadForReferences(event: NormalizedEvent): void {
+    if (!this.confirmationGate) return;
+
+    const channel = event.metadata.channel as string | undefined;
+    const threadTs =
+      (event.metadata.threadTs as string | undefined) ||
+      (event.metadata.timestamp as string | undefined);
+
+    if (!channel || !threadTs) {
+      logger.debug('Slack event missing channel/threadTs metadata, cannot register thread');
+      return;
+    }
+
+    // Only scan the triggering message, not the full thread history
+    // (resource.description contains the entire thread and would over-register)
+    const text = event.resource.comment?.body ?? '';
+
+    const resourceKeys = parseResourceReferences(text);
+
+    for (const key of resourceKeys) {
+      this.confirmationGate.registerThread(key, channel, threadTs);
+    }
+
+    if (resourceKeys.length > 0) {
+      logger.info(
+        `Registered Slack thread ${channel}:${threadTs} for ${resourceKeys.length} resource(s): ${resourceKeys.join(', ')}`
+      );
+    }
+  }
+
+  /**
+   * After a Slack-initiated command completes, scan the command output
+   * for GitHub/GitLab references (e.g. PR URLs created during execution)
+   * and register the originating Slack thread for those resources.
+   */
+  private registerSlackThreadFromOutput(event: NormalizedEvent, output: string): void {
+    if (!this.confirmationGate) return;
+
+    const channel = event.metadata.channel as string | undefined;
+    const threadTs =
+      (event.metadata.threadTs as string | undefined) ||
+      (event.metadata.timestamp as string | undefined);
+
+    if (!channel || !threadTs) {
+      return;
+    }
+
+    const resourceKeys = parseResourceReferences(output);
+
+    for (const key of resourceKeys) {
+      this.confirmationGate.registerThread(key, channel, threadTs);
+    }
+
+    if (resourceKeys.length > 0) {
+      logger.info(
+        `Registered Slack thread ${channel}:${threadTs} from command output for ${resourceKeys.length} resource(s): ${resourceKeys.join(', ')}`
+      );
+    }
+  }
+
   private async markAsProcessed(reactor: Reactor, event: NormalizedEvent): Promise<void> {
     try {
       // Generate a user-friendly display string from the event for the comment template
@@ -278,7 +402,41 @@ export class Watcher extends WatcherEventEmitter {
       this.server.registerWebhook(name, handler.handle.bind(handler));
     }
 
+    // Register Slack interaction endpoint for the confirmation gate
+    if (this.confirmationGate) {
+      this.server.registerPostRoute(
+        '/interactions/slack',
+        this.handleSlackInteraction.bind(this)
+      );
+    }
+
     await this.server.start();
+  }
+
+  private async handleSlackInteraction(req: Request, res: Response): Promise<void> {
+    if (!this.confirmationGate) {
+      res.status(404).json({ error: 'Confirmation gate not enabled' });
+      return;
+    }
+
+    const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+    if (!rawBody) {
+      res.status(400).json({ error: 'Missing raw body' });
+      return;
+    }
+
+    const result = await this.confirmationGate.handleInteraction(
+      req.headers,
+      req.body,
+      rawBody
+    );
+
+    if (!result.ok) {
+      res.status(401).json({ error: result.error });
+      return;
+    }
+
+    res.status(200).json({ ok: true });
   }
 
   private async startPollers(): Promise<void> {
@@ -354,6 +512,10 @@ export class Watcher extends WatcherEventEmitter {
 
   private async cleanup(): Promise<void> {
     this.stopPollers();
+
+    if (this.confirmationGate) {
+      this.confirmationGate.shutdown();
+    }
 
     if (this.server) {
       try {
