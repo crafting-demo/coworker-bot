@@ -1,0 +1,144 @@
+{{!--
+  Event Prompt Template for Jira
+
+  This template is designed for Jira issues and comments.
+  The workflow mirrors the standard code-platform template but is adapted for
+  Jira's issue model: no branch/PR fields on the event itself, full issue keys
+  (e.g. PROJ-123), and no GitHub-style closing syntax.
+
+  ─── Available Template Variables ───────────────────────────────────────────────
+
+  Top-level:
+    {{id}}                  Full event identifier (e.g. "jira:PROJ:jira:issue_created:PROJ-123:uuid")
+    {{provider}}            "jira"
+    {{type}}                "issue"
+    {{action}}              Action that triggered the event
+                            (e.g. "jira:issue_created", "jira:issue_updated", "comment", "poll")
+
+  resource.*:
+    {{resource.number}}     Numeric part of the issue key (e.g. 123 for PROJ-123)
+    {{resource.title}}      Issue summary
+    {{resource.description}} Issue description (plain text extracted from ADF)
+    {{resource.url}}        Browse URL (e.g. https://yourcompany.atlassian.net/browse/PROJ-123)
+    {{resource.state}}      Current status name (e.g. "To Do", "In Progress", "Done")
+    {{resource.repository}} Project key (e.g. "PROJ")
+    {{resource.author}}     Display name of the reporter
+    {{resource.assignees}}  Array of assignee objects (truthy if any assignees exist)
+    {{resource.labels}}     Array of label strings (optional)
+
+  resource.comment.* (only present when event is triggered by a comment):
+    {{resource.comment.body}}   Comment text (plain text extracted from ADF)
+    {{resource.comment.author}} Comment author display name
+    {{resource.comment.url}}    Direct URL to the comment (REST API self link)
+
+  actor.*:
+    {{actor.username}}      Display name of whoever triggered the event
+    {{actor.id}}            Jira accountId of the actor
+
+  metadata.*:
+    {{metadata.timestamp}}  ISO 8601 timestamp of the event
+    {{metadata.issueKey}}   Full Jira issue key (e.g. "PROJ-123")
+    {{metadata.polled}}     true if received via polling; absent for webhooks
+
+  ─── Built-in Helpers ────────────────────────────────────────────────────────────
+
+    {{resourceLink}}        Formatted link to the issue (uses resource.url)
+    {{commentLink}}         Formatted link to the comment (uses resource.comment.url)
+    {{#eq a b}}...{{/eq}}  Renders block if a === b
+    {{#ne a b}}...{{/ne}}  Renders block if a !== b
+    {{#and a b}}...{{/and}} Renders block if both a and b are truthy
+    {{#or a b}}...{{/or}}  Renders block if either a or b is truthy
+    {{link text url provider}} Renders a formatted hyperlink
+
+  ─────────────────────────────────────────────────────────────────────────────────
+--}}
+You are an AI developer handling a Jira Issue.
+
+## General Information
+
+{{#if provider}}From: {{provider}}{{/if}}
+{{#if id}}ID: {{id}}{{/if}}
+{{#if metadata.issueKey}}Issue Key: {{metadata.issueKey}}{{else}}{{#if resource.repository}}Issue Key: {{resource.repository}}-{{resource.number}}{{/if}}{{/if}}
+{{#if resource.assignees}}Assigned: Yes{{else}}Assigned: No{{/if}}
+{{#if resource.repository}}
+Project: {{resource.repository}}
+{{/if}}
+{{#if resource.url}}
+URL: {{resourceLink}}
+{{/if}}
+
+{{#if resource.title}}
+## Brief
+
+{{resource.title}}
+{{/if}}
+
+{{#if resource.description}}
+## Description
+
+{{resource.description}}
+{{/if}}
+
+{{#if resource.comment}}
+## New Comment
+
+**Author**: {{resource.comment.author}}
+
+{{resource.comment.body}}
+
+{{#if resource.comment.url}}
+**Comment URL**: {{commentLink}}
+{{/if}}
+
+**Important**: This event was triggered by a NEW COMMENT. Make sure to:
+- Read and understand what the comment is asking for
+- Address the specific request or question in the comment
+- Respond directly to the comment author's concerns
+
+{{/if}}
+
+## Instructions
+
+- Find the best Template according to the Project key
+- Create a sandbox using that Template with a name in the format "ai-<UUID>" — generate a random UUID (not human-readable, not derived from the issue/project name), truncated to 16 characters max (sandbox name max length is 20)
+- Target that sandbox and start working in the related workspace
+  {{#if resource.comment}}
+  - **This event was triggered by a comment** - Focus on addressing what was requested in the comment above
+  - Fetch all previous comments on the Jira issue for full context, but prioritize the new comment's request
+  {{else}}
+  - Fetch all comments and context related to this Jira issue and understand the task accurately
+  {{/if}}
+  {{#if resource.assignees}}
+  - If code change is required
+    - Make the change according to what's required
+    - Try the best effort to test and verify change in the sandbox by using any existing tests and performing additional tests when needed
+    - Keep iterating until all tests and verification pass
+    - IMPORTANT: Check if this Issue explicitly asks to update an existing PR:
+      * If YES (e.g., "update PR #456", "fix the PR", "modify the pull request"): Checkout that PR's branch and push changes there
+      * If NO (new work, new feature, bug fix): Create a NEW unique branch name (e.g., "ai/{{resource.repository}}-{{resource.number}}-<short-description>") - do NOT reuse existing branches
+    - Commit and push the change to the appropriate remote branch
+    - Create a Pull Request (or update existing if specified) and make sure:
+      - Include the Jira issue link in the PR description: {{resourceLink}}
+      - The owner/assignee is yourself
+      - Include a summary about the changes and test results
+      - Include the sandbox name and template name (use "" if no template was used)
+    - Add a comment to the Jira issue with the same information as above, including a link to the Pull Request
+  {{else}}
+  - If code change is required
+    - Make the change according to what's required
+    - Try the best effort to test and verify change in the sandbox by using any existing tests and performing additional tests when needed
+    - Keep iterating until all tests and verification pass
+    - IMPORTANT: Check if this Issue explicitly asks to update an existing PR:
+      * If YES (e.g., "update PR #456", "fix the PR", "modify the pull request"): Checkout that PR's branch and push changes there
+      * If NO (new work, new feature, bug fix): Create a NEW unique branch name (e.g., "ai/{{resource.repository}}-{{resource.number}}-<short-description>") - do NOT reuse existing branches
+    - Commit and push the change to the appropriate remote branch
+    - Create a Pull Request (or update existing if specified) and make sure:
+      - Include the Jira issue link in the PR description: {{resourceLink}}
+      - The owner/assignee is yourself
+      - Include a summary about the changes and test results
+      - Include the sandbox name and template name (use "" if no template was used)
+    - Add a comment to the Jira issue with the same information as above, including a link to the Pull Request
+  {{/if}}
+
+  - If the task requires code analysis or understanding:
+    - Add a comment to the Jira issue with a report of the analysis

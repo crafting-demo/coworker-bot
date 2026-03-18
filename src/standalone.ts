@@ -2,6 +2,7 @@ import { Watcher } from './watcher/Watcher.js';
 import { ConfigLoader } from './watcher/core/ConfigLoader.js';
 import { GitHubProvider } from './watcher/providers/github/GitHubProvider.js';
 import { GitLabProvider } from './watcher/providers/gitlab/GitLabProvider.js';
+import { JiraProvider } from './watcher/providers/jira/JiraProvider.js';
 import { LinearProvider } from './watcher/providers/linear/LinearProvider.js';
 import { SlackProvider } from './watcher/providers/slack/SlackProvider.js';
 import { logger } from './watcher/utils/logger.js';
@@ -20,6 +21,10 @@ async function main(): Promise<void> {
 
     if (config.providers.gitlab?.enabled) {
       watcher.registerProvider('gitlab', new GitLabProvider());
+    }
+
+    if (config.providers.jira?.enabled) {
+      watcher.registerProvider('jira', new JiraProvider());
     }
 
     if (config.providers.linear?.enabled) {

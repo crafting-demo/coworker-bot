@@ -313,9 +313,10 @@ export class Watcher extends WatcherEventEmitter {
 
       const hasPollingConfig =
         (options?.repositories && options.repositories.length > 0) || // GitHub/GitLab
-        (options?.projects && options.projects.length > 0) || // GitLab
+        (options?.projects && options.projects.length > 0) || // GitLab/Jira
         (options?.teams && options.teams.length > 0) || // Linear
-        (name === 'linear' && hasAuth); // Linear can poll all teams
+        (name === 'linear' && hasAuth) || // Linear can poll all teams
+        (name === 'jira' && hasAuth); // Jira can poll all accessible projects
 
       if (!hasPollingConfig) {
         logger.debug(`Skipping poller for ${name}: no repositories/projects/teams configured`);

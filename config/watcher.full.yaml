@@ -66,6 +66,7 @@ commandExecutor:
   # Use this when you have providers with fundamentally different workflows:
   # prompts:
   #   slack: ./config/event-prompt-slack.hbs  # Slack's conversational workflow
+  #   jira: ./config/event-prompt-jira.hbs    # Jira issue workflow (no PR fields, full issue keys)
   # promptTemplateFile: ./config/event-prompt.hbs  # Fallback for GitHub/Linear
 
   # Option 3: Inline template (not recommended, use files instead)
@@ -169,6 +170,69 @@ providers:
       #   pull_request:
       #     actions: ['closed', 'reopened', 'review_requested']
       #   issue_comment: {}
+
+  # Jira Provider (REST API v3)
+  # Supports Jira Cloud (email + API token) and Jira Server/Data Center (PAT)
+  # Webhook endpoint: POST /webhook/jira
+  # Register this URL in Jira: Project Settings → System → WebHooks → Create a WebHook
+  # Triggering events to enable: Issue → created, updated; Comment → created, updated
+  jira:
+    enabled: false
+    pollingInterval: 60  # Poll every 60 seconds
+
+    # Authentication
+    # Option A: Jira Cloud with an API token (recommended for Jira Cloud)
+    auth:
+      type: basic
+      username: user@example.com       # Your Atlassian account email
+      tokenEnv: JIRA_API_TOKEN         # API token from id.atlassian.com/manage-profile/security/api-tokens
+
+    # Option B: Personal Access Token (Jira Server/DC or Jira Cloud)
+    # auth:
+    #   type: token
+    #   tokenEnv: JIRA_PERSONAL_ACCESS_TOKEN
+
+    options:
+      # Base URL of your Jira instance (required)
+      # Jira Cloud:  https://yourcompany.atlassian.net
+      # Jira Server: https://jira.yourcompany.com
+      baseUrl: https://yourcompany.atlassian.net
+
+      # Optional shared secret for webhook verification
+      # Set the same value in the X-Jira-Webhook-Token header when registering the webhook,
+      # or configure your reverse proxy to forward it.
+      # webhookSecret: "your-secret-here"
+      # webhookSecretEnv: JIRA_WEBHOOK_SECRET
+      # webhookSecretFile: /path/to/secret
+
+      # Bot display name for deduplication (required)
+      # Must match the Jira display name of the bot account exactly (case-insensitive).
+      # If omitted, auto-detected from the authenticated credentials.
+      botUsername: "Coworker Bot"
+      # Multiple bot display names:
+      # botUsername:
+      #   - "Coworker Bot"
+      #   - "Backup Bot"
+
+      # Projects to monitor for polling (optional, default: all accessible projects)
+      # Use the project KEY (e.g. "PROJ", not the full project name)
+      projects:
+        - PROJ
+        - ENG
+
+      # Initial lookback period for first poll (default: 1 hour)
+      initialLookbackHours: 1
+
+      # Maximum issues to process per poll (default: 50)
+      maxItemsPerPoll: 50
+
+      # Issue statuses to skip (case-insensitive, default: done, closed, resolved, cancelled, won't fix)
+      # Jira issues in these states will not trigger the bot.
+      # skipStatuses:
+      #   - done
+      #   - closed
+      #   - resolved
+      #   - cancelled
 
   # Linear Provider (uses GraphQL API)
   linear:

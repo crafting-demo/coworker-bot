@@ -33,6 +33,15 @@ export class ConfigLoader {
    *   GITLAB_WEBHOOK_TOKEN          — webhook token for request verification
    *   GITLAB_POLLING_INTERVAL       — polling interval in seconds (default: 60)
    *
+   * Jira:
+   *   JIRA_API_TOKEN                — enables Jira provider (API token or PAT)
+   *   JIRA_BASE_URL                 — Jira instance URL (e.g. https://company.atlassian.net)
+   *   JIRA_EMAIL                    — email address for Basic auth (Jira Cloud with API token)
+   *   JIRA_BOT_USERNAME             — bot display name (auto-detected from credentials if absent)
+   *   JIRA_PROJECTS                 — comma-separated project keys (e.g. PROJ,ENG)
+   *   JIRA_WEBHOOK_SECRET           — shared secret for webhook token verification (optional)
+   *   JIRA_POLLING_INTERVAL         — polling interval in seconds (default: 60)
+   *
    * Linear:
    *   LINEAR_API_TOKEN              — enables Linear provider
    *   LINEAR_BOT_USERNAME           — overrides bot username (auto-detected from token if absent)
@@ -116,6 +125,40 @@ export class ConfigLoader {
         githubConfig.pollingInterval = parseInt(process.env.GITHUB_POLLING_INTERVAL, 10);
       }
       result.providers!.github = githubConfig;
+    }
+
+    // Jira — auto-enabled when JIRA_API_TOKEN is set
+    if (process.env.JIRA_API_TOKEN) {
+      const options: Record<string, unknown> = {};
+
+      if (process.env.JIRA_BASE_URL) {
+        options.baseUrl = process.env.JIRA_BASE_URL;
+      }
+      if (process.env.JIRA_BOT_USERNAME) {
+        options.botUsername = process.env.JIRA_BOT_USERNAME;
+      }
+      if (process.env.JIRA_PROJECTS) {
+        options.projects = process.env.JIRA_PROJECTS.split(',')
+          .map((p) => p.trim())
+          .filter(Boolean);
+      }
+      if (process.env.JIRA_WEBHOOK_SECRET) {
+        options.webhookSecretEnv = 'JIRA_WEBHOOK_SECRET';
+      }
+
+      // When JIRA_EMAIL is present, use Basic auth (Jira Cloud with API token).
+      // Otherwise fall back to Bearer token auth (PAT for Jira Server/DC or Jira Cloud).
+      const jiraConfig: ProviderConfig = {
+        enabled: true,
+        auth: process.env.JIRA_EMAIL
+          ? { type: 'basic', username: process.env.JIRA_EMAIL, tokenEnv: 'JIRA_API_TOKEN' }
+          : { type: 'token', tokenEnv: 'JIRA_API_TOKEN' },
+        options,
+      };
+      if (process.env.JIRA_POLLING_INTERVAL) {
+        jiraConfig.pollingInterval = parseInt(process.env.JIRA_POLLING_INTERVAL, 10);
+      }
+      result.providers!.jira = jiraConfig;
     }
 
     // Linear — auto-enabled when LINEAR_API_TOKEN is set
