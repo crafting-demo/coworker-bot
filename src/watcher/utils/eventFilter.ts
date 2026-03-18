@@ -24,6 +24,18 @@ export function isBotMentionedInText(text: string, botUsernames: string[]): bool
 }
 
 /**
+ * Returns true if any botAccountId appears as a Jira wiki markup mention
+ * in the text (e.g. "[~accountid:712020:abc123]").
+ *
+ * This handles comment bodies that arrive as plain wiki markup strings
+ * rather than ADF documents.
+ */
+export function isBotMentionedByAccountId(text: string, accountIds: string[]): boolean {
+  if (!text || accountIds.length === 0) return false;
+  return accountIds.some((id) => text.includes(`[~accountid:${id}]`));
+}
+
+/**
  * Returns true if the assignees list contains a bot username.
  *
  * @param assignees        Provider-specific assignee objects (may be undefined or empty).

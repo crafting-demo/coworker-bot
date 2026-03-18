@@ -99,6 +99,7 @@ env:
   #   echo "YOUR_API_TOKEN" | cs secret create jira-api-token --shared -f -
   # ---------------------------------------------------------------------------
   - JIRA_API_TOKEN=${secret:jira-api-token}
+  - JIRA_WEBHOOK_SECRET=${secret:jira-webhook-secret}
 
 endpoints:
   # ---------------------------------------------------------------------------

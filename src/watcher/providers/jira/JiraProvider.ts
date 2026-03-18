@@ -12,7 +12,11 @@ import {
   extractTextFromADF,
   type JiraWebhookPayload,
 } from './JiraNormalizer.js';
-import { isBotMentionedInText, isBotAssignedInList } from '../../utils/eventFilter.js';
+import {
+  isBotMentionedInText,
+  isBotMentionedByAccountId,
+  isBotAssignedInList,
+} from '../../utils/eventFilter.js';
 import { ProviderError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 
@@ -27,6 +31,7 @@ export class JiraProvider extends BaseProvider {
   private comments: JiraComments | undefined;
   private authHeader: string | undefined;
   private botUsernames: string[] = [];
+  private botAccountIds: string[] = [];
   private skipStatuses: string[] = DEFAULT_SKIP_STATUSES;
 
   get metadata(): ProviderMetadata {
@@ -100,22 +105,27 @@ export class JiraProvider extends BaseProvider {
 
     this.comments = new JiraComments(baseUrl, this.authHeader);
 
-    // Resolve bot username(s) for deduplication; auto-detect from credentials if absent
+    // Resolve bot username(s) for deduplication; auto-detect from credentials if absent.
+    // Always fetch the authenticated user to get the account ID, which is needed to detect
+    // wiki markup mentions ([~accountid:...]) in addition to ADF @displayName mentions.
     if (options?.botUsername) {
       this.botUsernames = Array.isArray(options.botUsername)
         ? options.botUsername
         : [options.botUsername];
       logger.debug(`Jira bot usernames configured: ${this.botUsernames.join(', ')}`);
-    } else {
-      const detected = await this.comments.getAuthenticatedUser();
-      if (detected) {
+    }
+    const detected = await this.comments.getAuthenticatedUser();
+    if (detected) {
+      if (this.botUsernames.length === 0) {
         this.botUsernames = [detected.displayName];
         logger.info(`Jira bot username auto-detected: ${detected.displayName}`);
-      } else {
-        logger.warn(
-          'Jira: botUsername not configured and auto-detection failed - deduplication will not work'
-        );
       }
+      this.botAccountIds = [detected.accountId];
+      logger.debug(`Jira bot account ID: ${detected.accountId}`);
+    } else if (this.botUsernames.length === 0) {
+      logger.warn(
+        'Jira: botUsername not configured and auto-detection failed - comment mention detection will not work'
+      );
     }
 
     // Resolve optional webhook secret
@@ -206,14 +216,22 @@ export class JiraProvider extends BaseProvider {
         return;
       }
 
-      if (this.botUsernames.length === 0) {
+      if (this.botUsernames.length === 0 && this.botAccountIds.length === 0) {
         logger.error('Skipping Jira comment - botUsername not configured');
         return;
       }
 
       const commentText = extractTextFromADF(payload.comment.body);
-      if (!isBotMentionedInText(commentText, this.botUsernames)) {
-        logger.debug(`Skipping Jira comment - bot not mentioned`);
+      if (
+        !isBotMentionedInText(commentText, this.botUsernames) &&
+        !isBotMentionedByAccountId(commentText, this.botAccountIds)
+      ) {
+        logger.debug(
+          `Skipping Jira comment - bot not mentioned. ` +
+            `Extracted text: ${JSON.stringify(commentText.slice(0, 200))}, ` +
+            `Bot usernames: ${JSON.stringify(this.botUsernames)}, ` +
+            `Bot account IDs: ${JSON.stringify(this.botAccountIds)}`
+        );
         return;
       }
 
