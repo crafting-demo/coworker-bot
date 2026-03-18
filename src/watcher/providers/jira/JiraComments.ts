@@ -49,9 +49,9 @@ export class JiraComments {
       throw new Error(`Failed to fetch comments: ${response.status} ${response.statusText}`);
     }
 
-    // Jira REST API v3 GET /issue/{key}/comment returns a paginated object with a "values" array
-    const result = (await response.json()) as { values?: JiraCommentItem[] };
-    const comments = result.values ?? [];
+    // Jira REST API v3 GET /issue/{key}/comment returns { comments: [...], startAt, maxResults, total }
+    const result = (await response.json()) as { comments?: JiraCommentItem[] };
+    const comments = result.comments ?? [];
 
     logger.debug(`Fetched ${comments.length} comments from Jira issue ${issueKey}`);
 

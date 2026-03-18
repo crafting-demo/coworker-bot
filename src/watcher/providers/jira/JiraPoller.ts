@@ -28,10 +28,17 @@ export class JiraPoller {
       logger.debug(`Polling Jira for changes since ${since.toISOString()}`);
     }
 
-    // Jira JQL date format: "YYYY-MM-DD HH:mm" (UTC)
-    const sinceStr = formatJqlDate(since);
+    // Use a relative JQL offset ("-Nm") rather than an absolute datetime string.
+    // Absolute strings like "YYYY-MM-DD HH:mm" are interpreted in the Jira user's
+    // configured timezone, so a UTC-formatted string is read as a future time for
+    // users in negative-offset zones, returning 0 results. Relative offsets are
+    // evaluated against Jira's own current time and are timezone-independent.
+    // A 5-minute buffer covers clock skew and Jira's search-index propagation delay.
+    // The secondary per-issue timestamp filter below handles exact deduplication.
+    const elapsedMinutes = Math.ceil((Date.now() - since.getTime()) / (60 * 1000));
+    const lookbackMinutes = elapsedMinutes + 5;
 
-    let jql = `updated >= "${sinceStr}"`;
+    let jql = `updated >= "-${lookbackMinutes}m"`;
 
     if (this.config.projects && this.config.projects.length > 0) {
       const projectList = this.config.projects.map((p) => `"${p}"`).join(', ');
@@ -136,16 +143,3 @@ export class JiraPoller {
   }
 }
 
-/**
- * Format a Date as a Jira JQL datetime string: "YYYY-MM-DD HH:mm"
- * Jira interprets this in the server's timezone; using UTC values is safe
- * because the filter only needs to be roughly accurate (we do a secondary
- * client-side filter on the returned issues).
- */
-function formatJqlDate(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return (
-    `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}` +
-    ` ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`
-  );
-}

@@ -145,7 +145,6 @@ export class ConfigLoader {
       if (process.env.JIRA_WEBHOOK_SECRET) {
         options.webhookSecretEnv = 'JIRA_WEBHOOK_SECRET';
       }
-
       // When JIRA_EMAIL is present, use Basic auth (Jira Cloud with API token).
       // Otherwise fall back to Bearer token auth (PAT for Jira Server/DC or Jira Cloud).
       const jiraConfig: ProviderConfig = {
