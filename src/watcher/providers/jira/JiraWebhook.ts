@@ -1,25 +1,42 @@
+import { createHmac, timingSafeEqual } from 'crypto';
+
 export class JiraWebhook {
   constructor(private readonly secret?: string) {}
 
   validate(
     headers: Record<string, string | string[] | undefined>,
-    _rawBody: string | Buffer
+    rawBody: string | Buffer
   ): { valid: boolean; error?: string } {
     // If no secret configured, accept all webhooks
     if (!this.secret) {
       return { valid: true };
     }
 
-    // Check shared secret from X-Jira-Webhook-Token header
-    const token = this.getHeader(headers, 'x-jira-webhook-token');
-    if (!token) {
-      return { valid: false, error: 'Missing X-Jira-Webhook-Token header' };
+    // Jira Cloud sends HMAC signature in X-Hub-Signature: method=signature
+    const signatureHeader = this.getHeader(headers, 'x-hub-signature');
+    if (!signatureHeader) {
+      return { valid: false, error: 'Missing X-Hub-Signature header' };
     }
 
-    // Simple string comparison for shared secret
-    // Jira does not provide a standard HMAC signing mechanism for system webhooks
-    if (token !== this.secret) {
-      return { valid: false, error: 'Invalid webhook token' };
+    const eqIdx = signatureHeader.indexOf('=');
+    if (eqIdx === -1) {
+      return { valid: false, error: 'Malformed X-Hub-Signature header' };
+    }
+
+    const method = signatureHeader.slice(0, eqIdx);
+    const signature = signatureHeader.slice(eqIdx + 1);
+
+    const body = typeof rawBody === 'string' ? Buffer.from(rawBody, 'utf8') : rawBody;
+    const expected = createHmac(method, this.secret).update(body).digest('hex');
+
+    try {
+      const sigBuf = Buffer.from(signature, 'hex');
+      const expBuf = Buffer.from(expected, 'hex');
+      if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
+        return { valid: false, error: 'X-Hub-Signature mismatch' };
+      }
+    } catch {
+      return { valid: false, error: 'X-Hub-Signature mismatch' };
     }
 
     return { valid: true };
