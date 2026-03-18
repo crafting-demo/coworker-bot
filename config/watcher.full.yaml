@@ -198,9 +198,10 @@ providers:
       # Jira Server: https://jira.yourcompany.com
       baseUrl: https://yourcompany.atlassian.net
 
-      # Optional shared secret for webhook verification
-      # Set the same value in the X-Jira-Webhook-Token header when registering the webhook,
-      # or configure your reverse proxy to forward it.
+      # Optional shared secret for webhook verification (recommended)
+      # Jira Cloud uses this to sign payloads with HMAC-SHA256 in the X-Hub-Signature header.
+      # Enter the same value in the "Secret" field when registering the webhook in Jira
+      # (Settings → System → WebHooks → Create a WebHook).
       # webhookSecret: "your-secret-here"
       # webhookSecretEnv: JIRA_WEBHOOK_SECRET
       # webhookSecretFile: /path/to/secret

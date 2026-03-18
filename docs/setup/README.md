@@ -17,11 +17,12 @@ Before starting, make sure you have:
 
 Each provider requires its own credentials and, in some cases, an MCP server for the agent to act on your behalf. Follow the guide for each provider you want to use:
 
-| Provider                      | Credentials needed                | MCP available                                  |
-| ----------------------------- | --------------------------------- | ---------------------------------------------- |
-| [GitHub](providers/github.md) | Fine-grained PAT + webhook secret | GitHub MCP server (container, auto-configured) |
-| [Linear](providers/linear.md) | API key + webhook secret          | Remote MCP at `https://mcp.linear.app/mcp`     |
-| [Slack](providers/slack.md)   | Bot token + signing secret        | Slack MCP server (container, auto-configured)  |
+| Provider                      | Credentials needed                      | MCP available                                  |
+| ----------------------------- | --------------------------------------- | ---------------------------------------------- |
+| [GitHub](providers/github.md) | Fine-grained PAT + webhook secret       | GitHub MCP server (container, auto-configured) |
+| [Linear](providers/linear.md) | API key + webhook secret                | Remote MCP at `https://mcp.linear.app/mcp`     |
+| [Slack](providers/slack.md)   | Bot token + signing secret              | Slack MCP server (container, auto-configured)  |
+| [Jira](providers/jira.md)     | API token (Cloud) or PAT (Server/DC) + webhook secret | Community MCP server (manual setup) |
 
 Complete the relevant provider guide(s) before continuing. Each guide ends with a list of secrets to create; you will reference those secret names in Part 2.
 
@@ -179,6 +180,7 @@ For provider-specific troubleshooting, see the relevant provider guide:
 - [GitHub troubleshooting](providers/github.md#troubleshooting)
 - [Linear troubleshooting](providers/linear.md#troubleshooting)
 - [Slack troubleshooting](providers/slack.md#troubleshooting)
+- [Jira troubleshooting](providers/jira.md#troubleshooting)
 
 **Watcher fails to start — "No providers enabled"**
 

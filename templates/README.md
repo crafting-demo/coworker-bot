@@ -111,3 +111,40 @@ Used by the webhook handler to verify that incoming requests are from Slack.
 2. Go to **Basic Information → App Credentials**
 3. Copy the **Signing Secret**
 4. Add it to Crafting Sandbox as secret name `slack-signing-secret`
+
+---
+
+### `jira-api-token`
+
+**Used as:** `JIRA_API_TOKEN` (Jira Cloud) or `JIRA_PERSONAL_ACCESS_TOKEN` (Jira Server/DC)
+
+Used to authenticate the Jira provider for polling issues and posting comments.
+
+**How to create (Jira Cloud — API token):**
+
+1. Sign in to Jira as the bot account
+2. Go to [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
+3. Click **Create API token**, set a label (e.g., `coworker-bot`), and click **Create**
+4. Copy the token immediately — it will not be shown again
+5. Add it to Crafting Sandbox as secret name `jira-api-token`
+
+**How to create (Jira Server / Data Center — Personal Access Token):**
+
+1. Sign in to Jira as the bot account
+2. Go to your profile → **Personal Access Tokens** → **Create token**
+3. Set a name and expiry, then copy the token
+4. Add it to Crafting Sandbox as secret name `jira-api-token`
+
+---
+
+### `jira-webhook-secret`
+
+**Used as:** `JIRA_WEBHOOK_SECRET`
+
+Used to verify that incoming webhook payloads are genuinely from Jira. Jira Cloud signs payloads with an HMAC-SHA256 signature using this secret.
+
+**How to get:**
+
+1. Go to Jira → **Settings → System → WebHooks → Create a WebHook**
+2. Jira generates a secret for you — copy it after creation
+3. Add it to Crafting Sandbox as secret name `jira-webhook-secret`

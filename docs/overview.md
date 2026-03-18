@@ -4,7 +4,7 @@ coworker-bot is the central piece of the automated coding flow. It acts as an ev
 
 ## What It Does
 
-coworker-bot listens for events from developer platforms (GitHub, Linear, Slack), filters and preprocesses them, constructs a task prompt, and starts a Crafting Sandbox Coding Agent session via `cs llm` — which then drives the coding agent to complete the task. Refer to `cs llm --help` for more on the Coding Agent feature.
+coworker-bot listens for events from developer platforms (GitHub, Linear, Slack, Jira), filters and preprocesses them, constructs a task prompt, and starts a Crafting Sandbox Coding Agent session via `cs llm` — which then drives the coding agent to complete the task. Refer to `cs llm --help` for more on the Coding Agent feature.
 
 When a follow-up event arrives (e.g. a comment update or task revision), the same flow is triggered again with updated context, allowing the agent to iterate on its previous work.
 
