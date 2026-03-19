@@ -140,10 +140,11 @@ Use this for local development or personal projects where the bot acts on your b
 5. Add it to Crafting Sandbox as secret name `jira-api-token`
 
 `watcher.yaml` auth block:
+
 ```yaml
 auth:
   type: basic
-  username: you@example.com      # your Atlassian account email
+  username: you@example.com # your Atlassian account email
   tokenEnv: JIRA_API_TOKEN
 ```
 
@@ -162,20 +163,22 @@ Jira Cloud service accounts authenticate with a **scoped OAuth API token (Bearer
 7. Add it to Crafting Sandbox as secret name `jira-api-token`
 
 Find your Cloud ID (needed for `baseUrl`):
+
 ```bash
 curl https://yourcompany.atlassian.net/_edge/tenant_info
 # returns: {"cloudId":"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", ...}
 ```
 
 `watcher.yaml` auth and options blocks:
+
 ```yaml
 auth:
-  type: token                   # Bearer token — no email field
+  type: token # Bearer token — no email field
   tokenEnv: JIRA_API_TOKEN
 
 options:
-  baseUrl: https://api.atlassian.com/ex/jira/<cloudId>   # NOT yourcompany.atlassian.net
-  botUsername: "Coworker Bot"   # Required — auto-detection does not work for service accounts
+  baseUrl: https://api.atlassian.com/ex/jira/<cloudId> # NOT yourcompany.atlassian.net
+  botUsername: 'Coworker Bot' # Required — auto-detection does not work for service accounts
 ```
 
 > **Note:** `botUsername` must be set explicitly for service accounts. Auto-detection via `/rest/api/3/myself` does not return a usable display name for scoped service account tokens. The value must match the Jira display name of the bot account exactly (case-insensitive).
@@ -195,6 +198,7 @@ Jira Server and Data Center use **Personal Access Tokens (PAT)** for REST API au
 5. Add it to Crafting Sandbox as secret name `jira-api-token`
 
 `watcher.yaml` auth block:
+
 ```yaml
 auth:
   type: token
@@ -211,6 +215,7 @@ auth:
 6. Add it to Crafting Sandbox as secret name `jira-api-token`
 
 `watcher.yaml` auth block:
+
 ```yaml
 auth:
   type: token

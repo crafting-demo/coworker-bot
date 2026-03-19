@@ -1,0 +1,289 @@
+# =============================================================================
+# coworker-bot — Jira Issue/Comment → AI Agent → GitHub PR
+#
+# Workflow:
+#   1. A Jira issue is assigned to the bot account, or a comment @mentions it
+#   2. The watcher detects the event (via webhook or polling)
+#   3. A Crafting Coding Agent session is launched with the issue as context
+#   4. The agent uses GitHub MCP tools to implement the change and open a PR
+#   5. The agent uses Jira MCP tools to post a follow-up comment on the issue
+#
+# SETUP STEPS before creating this template:
+#   1. Create secrets (see templates/README.md for token generation):
+#        echo "YOUR_JIRA_TOKEN"  | cs secret create jira-api-token --shared -f -
+#        echo "$(openssl rand -hex 32)" | cs secret create jira-webhook-secret --shared -f -
+#        echo "YOUR_GITHUB_PAT"  | cs secret create github-pat --shared -f -
+#   2. Fill in the required env vars below: JIRA_BASE_URL and JIRA_EMAIL
+#   3. In the watcher.yaml content (below), replace the two placeholder values:
+#        botUsername  — Jira display name of the bot account
+#        projects     — Jira project key(s) to monitor
+#   4. Create template:  cs template create coworker-bot-jira-github \
+#                          ./docs/examples/templates/coworker-bot-jira-2-github-pr.example.yaml
+#   5. Create sandbox:   cs sandbox create coworker-bot -t coworker-bot-jira-github
+#
+# After sandbox is created:
+#   6. Pin the sandbox:  cs sandbox pin coworker-bot  (keeps it running 24/7)
+#   7. Authorize MCP:    Web Console → Connect → LLM → Discovery → Authorize
+#   8. Register the Jira webhook:
+#        URL:     https://webhook--<sandbox-name>-<org>.sandboxes.site/webhook/jira
+#        Events:  Issue → created, updated; Comment → created, updated
+#        Secret:  the value you used for jira-webhook-secret above
+#        In Jira: Settings → System → WebHooks → Create a WebHook
+# =============================================================================
+
+env:
+  # ---------------------------------------------------------------------------
+  # Jira secrets — create these before applying the template.
+  #
+  # RECOMMENDED: mark both secrets as "Admin Only" + "Not Mountable" in the
+  # Web Console (Secrets → Edit) so they are never written to the filesystem.
+  # ---------------------------------------------------------------------------
+  - JIRA_API_TOKEN=${secret:jira-api-token}
+
+  # Webhook secret for verifying incoming Jira payloads (recommended).
+  # Must match the secret entered when registering the webhook in Jira.
+  - JIRA_WEBHOOK_SECRET=${secret:jira-webhook-secret}
+
+  # ---------------------------------------------------------------------------
+  # Required Jira configuration — fill these in before creating the template.
+  #
+  # JIRA_BASE_URL and JIRA_EMAIL are read directly by the Jira provider at
+  # runtime via process.env, so they do not need to be repeated in watcher.yaml.
+  # ---------------------------------------------------------------------------
+
+  # Base URL of your Jira instance (no trailing slash).
+  # Jira Cloud:          https://yourcompany.atlassian.net
+  # Jira Server/DC:      https://jira.yourcompany.com
+  # Jira Cloud (service account — uses Atlassian API gateway):
+  #                      https://api.atlassian.com/ex/jira/<cloudId>
+  #   Find your Cloud ID: curl https://yourcompany.atlassian.net/_edge/tenant_info
+  - JIRA_BASE_URL=https://yourcompany.atlassian.net
+
+  # Email address of the Jira bot account (Jira Cloud with basic auth only).
+  # Not required for Jira Server/DC or service accounts (which use type: token).
+  - JIRA_EMAIL=coworker-bot@yourcompany.com
+
+  # ---------------------------------------------------------------------------
+  # GitHub secret — used by the MCP server to create PRs and push code.
+  #
+  # Required scopes: repo, read:org
+  # Create: echo "YOUR_TOKEN" | cs secret create github-pat --shared -f -
+  # RECOMMENDED: mark as "Admin Only" + "Not Mountable" in the Web Console.
+  # ---------------------------------------------------------------------------
+  - GITHUB_PERSONAL_ACCESS_TOKEN=${secret:github-pat}
+
+endpoints:
+  # ---------------------------------------------------------------------------
+  # Public webhook endpoint — receives events pushed from Jira.
+  #
+  # Register this URL in Jira:
+  #   Settings → System → WebHooks → Create a WebHook
+  #   URL: https://webhook--<sandbox-name>-<org>.sandboxes.site/webhook/jira
+  #
+  # Find the exact URL: Web Console → Sandbox → Endpoints → "webhook"
+  #
+  # auth_proxy MUST be disabled — Jira sends unauthenticated POST requests.
+  # ---------------------------------------------------------------------------
+  - name: webhook
+    http:
+      routes:
+        - backend:
+            target: dev
+            port: webhook
+          path_prefix: /
+      auth_proxy:
+        disabled: true
+
+  # ---------------------------------------------------------------------------
+  # Internal GitHub MCP endpoint — used by Coding Agent sessions to interact
+  # with GitHub (read issues/PRs, create branches, push commits, open PRs).
+  # type: INTERNAL — not publicly accessible, only reachable within the sandbox.
+  # The mcp-proxy container injects the Authorization header before forwarding.
+  # ---------------------------------------------------------------------------
+  - name: github-mcp
+    type: INTERNAL
+    http:
+      routes:
+        - backend:
+            target: mcp-proxy
+            port: github
+          path_prefix: /
+      auth_proxy:
+        disabled: true
+      path: /mcp
+
+  # ---------------------------------------------------------------------------
+  # Internal Jira MCP endpoint — used by Coding Agent sessions to read Jira
+  # issue details and post follow-up comments when work is complete.
+  # Also routed through mcp-proxy which injects the Jira API token as a header.
+  # ---------------------------------------------------------------------------
+  - name: jira-mcp
+    type: INTERNAL
+    http:
+      routes:
+        - backend:
+            target: mcp-proxy
+            port: jira
+          path_prefix: /
+      auth_proxy:
+        disabled: true
+      path: /mcp
+
+workspaces:
+  - name: dev
+    ports:
+      # The watcher listens on port 3000 for incoming webhook events.
+      - name: webhook
+        port: 3000
+        protocol: HTTP/TCP
+
+    checkouts:
+      # The coworker-bot repo is checked out here on sandbox creation.
+      # The watcher daemon (below) runs from this directory.
+      - path: coworker-bot
+        repo:
+          git: git@github.com:crafting-demo/coworker-bot.git
+        manifest:
+          overlays:
+            - inline:
+                hooks:
+                  post-checkout:
+                    cmd: pnpm install
+                daemons:
+                  watcher:
+                    run:
+                      cmd: pnpm start
+
+    # -------------------------------------------------------------------------
+    # watcher.yaml — injected on every sandbox start (overwrite: true).
+    # Edit this config here in the template, not inside the running sandbox.
+    #
+    # JIRA_BASE_URL and JIRA_EMAIL are not listed here — the Jira provider reads
+    # them automatically from the environment variables set in the env: block above:
+    #   options.baseUrl  falls back to process.env.JIRA_BASE_URL
+    #   auth.username    falls back to process.env.JIRA_EMAIL
+    #
+    # Two values MUST be edited here before creating the template:
+    #   botUsername  — replace with the Jira display name of the bot account
+    #   projects     — replace with your Jira project key(s)
+    #
+    # Auth options:
+    #   Jira Cloud (personal account):  type: basic  (reads JIRA_EMAIL from env)
+    #   Jira Server/DC or service account: change type to "token" and remove
+    #     the username fallback note — JIRA_EMAIL is not used with type: token.
+    # -------------------------------------------------------------------------
+    system:
+      files:
+        - path: ~/coworker-bot/config/watcher.yaml
+          mode: "0644"
+          overwrite: true
+          content: |
+            server:
+              host: 0.0.0.0
+              port: 3000
+            commandExecutor:
+              enabled: true
+              command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
+              promptTemplateFile: ./config/event-prompt.hbs
+              prompts:
+                jira: ./config/event-prompt-jira.hbs
+              useStdin: true
+              followUp: true
+            deduplication:
+              enabled: true
+              commentTemplate: "Agent is working on {id}"
+            providers:
+              jira:
+                enabled: true
+    restriction:
+      life_time: ALWAYS
+
+containers:
+  # ---------------------------------------------------------------------------
+  # GitHub MCP server — exposes GitHub tools (issues, PRs, repos) to the
+  # Crafting Coding Agent sessions running inside this sandbox.
+  # The token is NOT set here — it is injected as an Authorization header by
+  # the mcp-proxy container below, so this container never holds the secret.
+  #
+  # GITHUB_TOOLSETS controls which tool groups are available to the agent.
+  # Available sets: repos, issues, pull_requests, code_security, orgs, ...
+  # Remove sets you don't need to reduce the tool surface area.
+  # ---------------------------------------------------------------------------
+  - name: github-mcp
+    image: ghcr.io/github/github-mcp-server
+    args:
+      - http
+    env:
+      - GITHUB_TOOLSETS=repos,issues,pull_requests
+    ports:
+      - name: github
+        port: 8082
+        protocol: HTTP/TCP
+
+  # ---------------------------------------------------------------------------
+  # nginx reverse proxy — injects auth tokens for both the GitHub MCP server
+  # and the Jira MCP server before forwarding requests.
+  #
+  # Why this container exists: MCP servers expect an Authorization: Bearer <token>
+  # header on every request. Rather than embedding credentials in each MCP
+  # server container, they are injected here at the proxy layer.
+  #
+  # The nginx config template uses envsubst (built into nginx:alpine) to
+  # substitute $GITHUB_PERSONAL_ACCESS_TOKEN and $JIRA_API_TOKEN at startup.
+  # ---------------------------------------------------------------------------
+  - name: mcp-proxy
+    image: nginx:alpine
+    env:
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${secret:github-pat}
+      - JIRA_API_TOKEN=${secret:jira-api-token}
+    ports:
+      - name: github
+        port: 8082
+        protocol: HTTP/TCP
+      - name: jira
+        port: 8083
+        protocol: HTTP/TCP
+    volume_mounts:
+      - name: inline-volume
+        path: /etc/nginx/templates/default.conf.template
+        from:
+          volume:
+            name: inline-volume
+            content:
+              text: |
+                server {
+                  listen 8082;
+                  location /mcp {
+                    proxy_set_header Authorization "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}";
+                    proxy_set_header Host github-mcp;
+                    proxy_pass http://github-mcp:8082/mcp;
+                    proxy_http_version 1.1;
+                    proxy_buffering off;
+                  }
+                }
+                server {
+                  listen 8083;
+                  location /mcp {
+                    proxy_set_header Authorization "Bearer ${JIRA_API_TOKEN}";
+                    proxy_set_header Host mcp.atlassian.com;
+                    proxy_pass https://mcp.atlassian.com/v1/mcp;
+                    proxy_http_version 1.1;
+                    proxy_buffering off;
+                    proxy_ssl_server_name on;
+                  }
+                }
+
+# =============================================================================
+# MCP server registrations — makes GitHub and Jira tools available to all
+# Crafting LLM sessions running inside this sandbox.
+#
+# REQUIRED MANUAL STEP after creating the sandbox:
+#   Web Console → Connect → LLM → Discovery tab → click "Authorize"
+#
+# Without this step, Coding Agent sessions cannot use any MCP tools.
+# =============================================================================
+customizations:
+  - mcp_server:
+      endpoint: github-mcp
+  - mcp_server:
+      endpoint: jira-mcp

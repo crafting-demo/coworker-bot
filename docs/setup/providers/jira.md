@@ -48,6 +48,7 @@ Choose the method that matches your Jira deployment.
 5. Click **Create** and **copy the token immediately** — it will not be shown again
 
 **Capture:**
+
 - The bot account email → `JIRA_EMAIL` env var
 - The API token → `jira-api-token` secret
 
@@ -78,8 +79,7 @@ Jira generates a webhook secret for you when you create the webhook (Step 4). Yo
 
 The sandbox template uses [Atlassian's hosted Remote MCP server](https://mcp.atlassian.com) (`mcp.atlassian.com/v1/mcp`). This gives the Crafting Coding Agent tools to read and write Jira issues and comments directly.
 
-The `mcp-proxy` nginx container injects `Authorization: Bearer ${JIRA_API_TOKEN}` on every request to the MCP server. The token must be a valid Atlassian API token with sufficient Jira permissions.
----
+## The `mcp-proxy` nginx container injects `Authorization: Bearer ${JIRA_API_TOKEN}` on every request to the MCP server. The token must be a valid Atlassian API token with sufficient Jira permissions.
 
 ## watcher.yaml Configuration
 
@@ -94,7 +94,7 @@ providers:
     # Option A: Jira Cloud (email + API token)
     auth:
       type: basic
-      username: bot@yourcompany.com  # bot account email
+      username: bot@yourcompany.com # bot account email
       tokenEnv: JIRA_API_TOKEN
 
     # Option B: Jira Server/DC or Jira Cloud (Personal Access Token)
@@ -112,7 +112,7 @@ providers:
 
       # Bot display name for deduplication — must match the Jira display name exactly (case-insensitive)
       # If omitted, auto-detected from the authenticated credentials.
-      botUsername: "Coworker Bot"
+      botUsername: 'Coworker Bot'
 
       # Projects to monitor for polling (uses Jira project keys, e.g. "PROJ", "ENG")
       # Omit to poll all accessible projects.
@@ -121,7 +121,8 @@ providers:
         - ENG
 
       initialLookbackHours: 1 # how far back to look on first poll
-      maxItemsPerPoll: 50     # cap items processed per poll cycle
+      maxItemsPerPoll: 50 # cap items processed per poll cycle
+
 
       # Issue statuses to skip (case-insensitive)
       # Default: done, closed, resolved, cancelled, won't fix
@@ -242,6 +243,7 @@ The env vars are not reaching the watcher. Check:
 The most common cause is that the bot account is not assigned to the issue. Jira issue events only trigger the bot when the bot's account is the assignee. Assign the issue to the bot account and verify the assignee display name matches `botUsername`.
 
 Run with `logLevel: debug` to see:
+
 ```
 [Jira dedup] issue PROJ-123 assignees: ["..."], bot usernames: ["..."]
 ```
