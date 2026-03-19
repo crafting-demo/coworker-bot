@@ -244,6 +244,8 @@ workspaces:
               enabled: true
               command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
               promptTemplateFile: ./config/event-prompt.hbs
+              prompts:
+                jira: ./config/event-prompt-jira.hbs
               useStdin: true
               followUp: true
             deduplication:
@@ -255,6 +257,8 @@ workspaces:
               linear:
                 enabled: true
               slack:
+                enabled: true
+              jira:
                 enabled: true
     restriction:
       life_time: ALWAYS
