@@ -22,8 +22,10 @@
     {{resource.state}}      Current state (e.g. "open", "closed")
     {{resource.repository}} GitHub: repository full name (e.g. "owner/repo")
                             Linear: team key (e.g. "ENG")
-    {{resource.author}}     GitHub: login username of the author
-                            Linear: display name of the creator (e.g. "Jane Doe")
+    {{resource.author}}     GitHub: login username of the original issue/PR author
+                            Linear: display name of the original creator (e.g. "Jane Doe")
+                            Used as git co-author on commits — always the original creator,
+                            regardless of who triggered this event
     {{resource.assignees}}  Array of assignees (truthy if any assignees exist)
     {{resource.labels}}     Array of label/tag name strings (optional)
     {{resource.branch}}     Head branch name — GitHub PRs only (optional)
@@ -69,6 +71,9 @@ Source Repository:
 {{/if}}
 {{#if resource.url}}
   URL: {{resourceLink}}
+{{/if}}
+{{#if resource.author}}
+Issue Author: @{{resource.author}}
 {{/if}}
 {{#eq type "pull_request"}}
 {{#if resource.branch}}
@@ -118,6 +123,13 @@ Pull Request:
   - Fetch all previous comments for full context, but prioritize the new comment's request
   {{else}}
   - Fetch all comments and context related to this {{#eq type "pull_request"}}Pull Request{{else}}Issue{{/eq}} and understand the task accurately
+  {{/if}}
+  {{#if resource.author}}
+  - When making commits, add the original issue/PR creator as a co-author if they are different from your committer identity:
+    - Look up their name and email via `gh api /users/{{resource.author}}` or GitHub MCP `get_user`
+    - If their email is not public, use `{{resource.author}}@users.noreply.github.com`
+    - Add to every commit message: `Co-Authored-By: <Name> <<email>>`
+    - **The co-author is always the original issue creator (`@{{resource.author}}`), not the person who triggered this event** (which may be a commenter)
   {{/if}}
   {{#eq type "pull_request"}}
   - Fetch all PR review comments (inline code review feedback on the diff) — prefer MCP tools (`pull_request_read` with `get_review_comments`) if available, otherwise fall back to `gh pr view --comments` — to understand all reviewer feedback before starting work

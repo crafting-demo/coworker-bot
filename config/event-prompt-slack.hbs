@@ -25,7 +25,9 @@
                             empty string for webhook events
     {{resource.state}}      Always "open"
     {{resource.repository}} Slack channel ID (e.g. "C01ABC123")
-    {{resource.author}}     Slack user ID of the sender (e.g. "U01ABC123") — not a username
+    {{resource.author}}     Slack user ID of whoever triggered this event (e.g. "U01ABC123") — not a username.
+                            This may not be the person who made the actual request — read the full
+                            conversation in {{resource.description}} to determine the true requester.
     {{resource.labels}}     Not populated for Slack
 
   resource.comment.* (always present for Slack events — contains the triggering message):
@@ -141,6 +143,11 @@ Author: @{{resource.author}}
        - If NO (new work): Use a NEW unique branch name (e.g., "ai/slack-<timestamp>-<description>") - NEVER reuse existing branches
      * Include context from the Slack discussion
      * Link back to this Slack thread in the issue/PR description: {{resourceLink}}
+     * When making commits, add the person who requested the PR/code change as a co-author:
+       - Read through the full conversation in `resource.description` to identify who actually made the request (e.g., "can you create a PR", "please fix this", "implement X")
+       - That person is the co-author — it may be the thread starter, or someone who chimed in later with the concrete ask
+       - Look up their Slack profile via Slack MCP to get their display name and email
+       - Add to every commit message: `Co-Authored-By: <Name> <<email>>`
      * Post the issue/PR link in Slack using the format: <issue_url|Issue #123> or <pr_url|PR #456>
      * This creates clickable links in Slack messages
 

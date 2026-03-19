@@ -22,7 +22,9 @@
     {{resource.url}}        Browse URL (e.g. https://yourcompany.atlassian.net/browse/PROJ-123)
     {{resource.state}}      Current status name (e.g. "To Do", "In Progress", "Done")
     {{resource.repository}} Project key (e.g. "PROJ")
-    {{resource.author}}     Display name of the reporter
+    {{resource.author}}     Display name of the original issue reporter
+                            Used as git co-author on commits — always the original reporter,
+                            regardless of who triggered this event (e.g. a commenter)
     {{resource.assignees}}  Array of assignee objects (truthy if any assignees exist)
     {{resource.labels}}     Array of label strings (optional)
 
@@ -66,6 +68,9 @@ Project: {{resource.repository}}
 {{#if resource.url}}
 URL: {{resourceLink}}
 {{/if}}
+{{#if resource.author}}
+Issue Reporter: {{resource.author}}
+{{/if}}
 
 {{#if resource.title}}
 ## Brief
@@ -103,6 +108,13 @@ URL: {{resourceLink}}
 - Create a sandbox using that Template with a name in the format "ai-<UUID>" — generate a random UUID (not human-readable, not derived from the issue/project name), truncated to 16 characters max (sandbox name max length is 20)
 - Target that sandbox and start working in the related workspace
   - Fetch the full Jira issue using the issue key above, including all comments, to get complete context before starting work
+  {{#if resource.author}}
+  - When making commits, add the original Jira issue reporter as a co-author if they are different from your committer identity:
+    - Use Jira MCP to look up the reporter's account details for `{{resource.author}}` and find their GitHub username or email
+    - If a GitHub username is found, use `<github-username>@users.noreply.github.com` as the email
+    - Add to every commit message: `Co-Authored-By: <Name> <<email>>`
+    - **The co-author is always the original issue reporter (`{{resource.author}}`), not the person who triggered this event** (which may be a commenter)
+  {{/if}}
   {{#if resource.comment}}
   - **This event was triggered by a comment** - Focus on addressing what was requested in the new comment above, using the full issue and comment history for context
   {{/if}}
