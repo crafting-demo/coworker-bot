@@ -134,8 +134,114 @@ export class SlackComments {
   }
 
   /**
-   * Update an existing Slack message.
+   * Post a Block Kit message to a Slack channel or thread.
+   * Used for interactive messages (buttons, etc.).
+   * Returns the message timestamp.
    */
+  async postBlockMessage(
+    channel: string,
+    fallbackText: string,
+    blocks: unknown[],
+    threadTs?: string
+  ): Promise<string> {
+    return withExponentialRetry(async () => {
+      const endpoint = `${this.baseUrl}/chat.postMessage`;
+
+      const payload: Record<string, unknown> = {
+        channel,
+        text: fallbackText,
+        blocks,
+      };
+
+      if (threadTs) {
+        payload.thread_ts = threadTs;
+      }
+
+      const response = await fetchWithTimeout(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Slack API error: ${response.status} ${response.statusText} - ${errorText}`
+        );
+      }
+
+      const data = (await response.json()) as { ok: boolean; ts?: string; error?: string };
+
+      if (!data.ok) {
+        throw new Error(`Slack API returned error: ${data.error}`);
+      }
+
+      if (!data.ts) {
+        throw new Error('Slack API did not return message timestamp');
+      }
+
+      logger.debug(
+        `Posted block message to Slack channel ${channel}${threadTs ? ` (thread: ${threadTs})` : ''}`
+      );
+
+      return data.ts;
+    });
+  }
+
+  /**
+   * Update an existing Slack message.
+   * Used to reflect confirmation status (approved/skipped/expired).
+   */
+  async updateMessage(
+    channel: string,
+    ts: string,
+    text: string,
+    blocks?: unknown[]
+  ): Promise<void> {
+    return withExponentialRetry(async () => {
+      const endpoint = `${this.baseUrl}/chat.update`;
+
+      const payload: Record<string, unknown> = {
+        channel,
+        ts,
+        text,
+      };
+
+      if (blocks) {
+        payload.blocks = blocks;
+      } else {
+        payload.blocks = [];
+      }
+
+      const response = await fetchWithTimeout(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Slack API error updating message: ${response.status} ${response.statusText} - ${errorText}`
+        );
+      }
+
+      const data = (await response.json()) as { ok: boolean; error?: string };
+
+      if (!data.ok) {
+        throw new Error(`Slack API returned error on update: ${data.error}`);
+      }
+
+      logger.debug(`Updated message ${ts} in channel ${channel}`);
+    });
+  }
+
   /**
    * Get bot user ID.
    * Useful for checking if the bot was mentioned in a message.

@@ -40,18 +40,13 @@ export function formatLink(text: string, url: string, provider: string): string 
 export function formatResourceLink(event: NormalizedEvent): string {
   const { resource, provider } = event;
 
-  // Special handling for Slack - use title instead of repository#number
+  // Slack: reply lands in the same thread, so channel info adds no value.
+  // Use "your request" (linked to the permalink when available).
   if (provider === 'slack') {
-    // Use the resource title which is "Message in #CHANNEL_ID"
-    const displayText = resource.title || 'Slack message';
-
-    // If URL is available (from polling with permalink), format as link
     if (resource.url && resource.url.trim() !== '') {
-      return formatLink(displayText, resource.url, provider);
+      return formatLink('your request', resource.url, provider);
     }
-
-    // For webhook events without permalink, just return the display text
-    return displayText;
+    return 'your request';
   }
 
   // Standard format for GitHub/GitLab/Linear (e.g., "owner/repo#123")

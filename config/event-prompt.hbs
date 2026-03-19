@@ -163,6 +163,9 @@ Pull Request:
       - Include a summary about the changes and test results
       - Include the sandbox name and template name (use "" if no template was used)
     - Add a comment to the {{#eq provider "slack"}}thread{{else}}Issue{{/eq}} with the same information as above
+    {{#ne type "pull_request"}}
+    - After creating the PR, run the full unit test suite (`pnpm test`, `npm test`, `make test`, or whichever test runner the project uses). If any test fails, fix the issue, push the fix to the same branch, and re-run until all tests pass. Report the final test results in a follow-up comment on the PR.
+    {{/ne}}
     {{/eq}}
   {{else}}
   - If code change is required
@@ -193,6 +196,9 @@ Pull Request:
       - Include a summary about the changes and test results
       - Include the sandbox name and template name (use "" if no template was used)
     - Add a comment to the {{#eq provider "slack"}}thread{{else}}Issue{{/eq}} with the same information as above
+    {{#ne type "pull_request"}}
+    - After creating the PR, run the full unit test suite (`pnpm test`, `npm test`, `make test`, or whichever test runner the project uses). If any test fails, fix the issue, push the fix to the same branch, and re-run until all tests pass. Report the final test results in a follow-up comment on the PR.
+    {{/ne}}
     {{/eq}}
   {{#eq type "pull_request"}}
   - If code review is required

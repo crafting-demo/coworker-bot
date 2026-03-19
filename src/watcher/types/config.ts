@@ -43,10 +43,22 @@ export interface CommandExecutorConfig {
   dryRun?: boolean;
 }
 
+export interface ConfirmationConfig {
+  enabled: boolean;
+  /**
+   * Fallback Slack channel for confirmations when no originating thread is known.
+   * Optional — if omitted and no thread is registered, the event executes directly.
+   */
+  channel?: string;
+  /** Minutes to wait before auto-skipping unconfirmed events (default: 30) */
+  timeoutMinutes?: number;
+}
+
 export interface WatcherConfig {
   server?: ServerConfig;
   deduplication?: DeduplicationConfig;
   commandExecutor?: CommandExecutorConfig;
+  confirmation?: ConfirmationConfig;
   providers: Record<string, ProviderConfig>;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
 }

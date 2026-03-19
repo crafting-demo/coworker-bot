@@ -1,6 +1,7 @@
 export { Watcher } from './Watcher.js';
 
 export { ConfigLoader } from './core/ConfigLoader.js';
+export { ConfirmationGate } from './core/ConfirmationGate.js';
 export { CommandExecutor } from './utils/CommandExecutor.js';
 
 export { BaseProvider } from './providers/BaseProvider.js';
@@ -14,6 +15,7 @@ export type {
   WatcherConfig,
   ServerConfig,
   DeduplicationConfig,
+  ConfirmationConfig,
   IProvider,
   ProviderConfig,
   ProviderAuth,

@@ -16,6 +16,27 @@ export class GitHubComments {
     resourceType: string,
     resourceNumber: number
   ): Promise<CommentInfo | null> {
+    const lastIssueComment = await this.getLastIssueComment(repository, resourceType, resourceNumber);
+
+    if (resourceType !== 'pull_request') {
+      return lastIssueComment;
+    }
+
+    const lastReviewComment = await this.getLastReviewComment(repository, resourceNumber);
+
+    if (!lastIssueComment) return lastReviewComment;
+    if (!lastReviewComment) return lastIssueComment;
+
+    return lastReviewComment.createdAt > lastIssueComment.createdAt
+      ? lastReviewComment
+      : lastIssueComment;
+  }
+
+  private async getLastIssueComment(
+    repository: string,
+    resourceType: string,
+    resourceNumber: number
+  ): Promise<CommentInfo | null> {
     const base = this.getCommentsEndpoint(repository, resourceType, resourceNumber);
     if (!base) {
       return null;
@@ -62,7 +83,7 @@ export class GitHubComments {
         }>;
 
         logger.debug(
-          `getLastComment: fetched ${comments.length} comment(s) for ${resourceType} #${resourceNumber} in ${repository}`,
+          `getLastIssueComment: fetched ${comments.length} comment(s) for ${resourceType} #${resourceNumber} in ${repository}`,
           comments
         );
 
@@ -79,7 +100,74 @@ export class GitHubComments {
         };
       });
     } catch (error) {
-      logger.error('Error fetching GitHub comments', error);
+      logger.error('Error fetching GitHub issue comments', error);
+      return null;
+    }
+  }
+
+  async getLastReviewComment(
+    repository: string,
+    prNumber: number
+  ): Promise<CommentInfo | null> {
+    const base = `https://api.github.com/repos/${repository}/pulls/${prNumber}/comments`;
+
+    const fetchPage = async (url: string) => {
+      const response = await fetchWithTimeout(url, {
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          Accept: 'application/vnd.github.v3+json',
+          'User-Agent': 'coworker-bot-watcher',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          throw response;
+        }
+        const errorBody = await response.text().catch(() => '');
+        logger.warn(`GitHub API error getting review comments: ${response.status} ${response.statusText} — ${errorBody}`);
+        return null;
+      }
+
+      return response;
+    };
+
+    try {
+      return await withExponentialRetry(async () => {
+        const firstResponse = await fetchPage(`${base}?per_page=100`);
+        if (!firstResponse) return null;
+
+        const linkHeader = firstResponse.headers.get('Link');
+        const lastPageUrl = linkHeader ? linkHeader.match(/<([^>]+)>;\s*rel="last"/)?.at(1) : null;
+
+        const finalResponse = lastPageUrl ? await fetchPage(lastPageUrl) : firstResponse;
+
+        if (!finalResponse) return null;
+
+        const comments = (await finalResponse.json()) as Array<{
+          user: { login: string };
+          body: string;
+          created_at: string;
+        }>;
+
+        logger.debug(
+          `getLastReviewComment: fetched ${comments.length} review comment(s) for PR #${prNumber} in ${repository}`
+        );
+
+        if (comments.length === 0) {
+          return null;
+        }
+
+        const lastComment = comments[comments.length - 1]!;
+
+        return {
+          author: lastComment.user.login,
+          body: lastComment.body,
+          createdAt: new Date(lastComment.created_at),
+        };
+      });
+    } catch (error) {
+      logger.error('Error fetching GitHub review comments', error);
       return null;
     }
   }
@@ -132,6 +220,52 @@ export class GitHubComments {
       });
     } catch (error) {
       logger.error('Error listing GitHub comments', error);
+      return [];
+    }
+  }
+
+  async listReviewComments(
+    repository: string,
+    prNumber: number,
+    limit: number = 10
+  ): Promise<CommentInfo[]> {
+    const endpoint = `https://api.github.com/repos/${repository}/pulls/${prNumber}/comments?per_page=${limit}&sort=created&direction=desc`;
+
+    try {
+      return await withExponentialRetry(async () => {
+        const response = await fetchWithTimeout(endpoint, {
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+            Accept: 'application/vnd.github.v3+json',
+            'User-Agent': 'coworker-bot-watcher',
+          },
+        });
+
+        if (!response.ok) {
+          if (response.status === 409) {
+            throw response;
+          }
+          const errorBody = await response.text().catch(() => '');
+          logger.warn(
+            `GitHub API error listing review comments: ${response.status} ${response.statusText} — ${errorBody}`
+          );
+          return [];
+        }
+
+        const comments = (await response.json()) as Array<{
+          user: { login: string };
+          body: string;
+          created_at: string;
+        }>;
+
+        return comments.map((c) => ({
+          author: c.user.login,
+          body: c.body,
+          createdAt: new Date(c.created_at),
+        }));
+      });
+    } catch (error) {
+      logger.error('Error listing GitHub review comments', error);
       return [];
     }
   }

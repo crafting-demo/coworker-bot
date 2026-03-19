@@ -167,9 +167,9 @@ export class CommandExecutor {
     displayString: string,
     event: NormalizedEvent,
     reactor: Reactor
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     if (!this.config.enabled) {
-      return;
+      return undefined;
     }
 
     try {
@@ -196,7 +196,7 @@ export class CommandExecutor {
         logger.info(`[DRY-RUN] Would execute command for event ${eventId}`);
         this.logDryRun(event, prompt);
         logger.info(`[DRY-RUN] Command execution skipped, but deduplication comment posted`);
-        return;
+        return undefined;
       }
 
       // Run command
@@ -210,8 +210,11 @@ export class CommandExecutor {
         await reactor.postComment(followUpComment);
         logger.debug(`Posted follow-up comment with command output`);
       }
+
+      return output;
     } catch (error) {
       logger.error('Command execution failed', error);
+      return undefined;
     }
   }
 

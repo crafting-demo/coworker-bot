@@ -281,6 +281,16 @@ export class SlackProvider extends BaseProvider {
     }
   }
 
+  /** Exposes the initialized SlackComments client for reuse (e.g., by ConfirmationGate). */
+  getComments(): SlackComments | undefined {
+    return this.comments;
+  }
+
+  /** Exposes the initialized SlackWebhook validator for reuse (e.g., by ConfirmationGate). */
+  getWebhook(): SlackWebhook | undefined {
+    return this.webhook;
+  }
+
   async shutdown(): Promise<void> {
     await super.shutdown();
     this.webhook = undefined;

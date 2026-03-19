@@ -27,25 +27,12 @@ export class GitHubProvider extends BaseProvider {
   private comments: GitHubComments | undefined;
   private token: string | undefined;
   private botUsernames: string[] = [];
+  /** Tracks the newest review comment timestamp processed per PR to avoid re-processing. */
+  private processedReviewTs: Map<string, number> = new Map();
 
   private static readonly DEFAULT_WEBHOOK_EVENTS: Record<string, GitHubEventConfig> = {
-    issues: { actions: ['all'], skipActions: [] },
-    pull_request: {
-      actions: ['all'],
-      skipActions: [
-        'opened',
-        'synchronize',
-        'edited',
-        'labeled',
-        'unlabeled',
-        'assigned',
-        'unassigned',
-        'locked',
-        'unlocked',
-        'review_requested',
-      ],
-    },
     issue_comment: { actions: ['all'], skipActions: [] },
+    pull_request_review_comment: { actions: ['all'], skipActions: [] },
   };
 
   private eventFilter: Record<string, GitHubEventConfig> = {
@@ -221,6 +208,9 @@ export class GitHubProvider extends BaseProvider {
     } else if (event === 'issue_comment' && payload.issue) {
       resourceType = payload.issue.pull_request ? 'pull_request' : 'issue';
       resourceNumber = payload.issue.number;
+    } else if (event === 'pull_request_review_comment' && payload.pull_request) {
+      resourceType = 'pull_request';
+      resourceNumber = payload.pull_request.number;
     } else {
       logger.debug(`Unsupported GitHub event type: ${event}`);
       return;
@@ -295,13 +285,18 @@ export class GitHubProvider extends BaseProvider {
       return false;
     }
     if (resource.comment) {
-      if (!isBotMentionedInText(resource.comment.body, this.botUsernames)) {
+      const mentioned = isBotMentionedInText(resource.comment.body, this.botUsernames);
+      if (!mentioned) {
         logger.debug(`Skipping ${type} #${resource.number} comment - bot not mentioned`);
         return false;
       }
     } else {
-      if (!isBotAssignedInList(resource.assignees, this.botUsernames, (a) => (a as any).login)) {
-        logger.debug(`Skipping ${type} #${resource.number} - bot not assigned`);
+      const assigned = isBotAssignedInList(resource.assignees, this.botUsernames, (a) => (a as any).login);
+      const authored = !!resource.author && this.botUsernames.some(
+        (bot) => bot.toLowerCase() === resource.author!.toLowerCase()
+      );
+      if (!assigned && !authored) {
+        logger.debug(`Skipping ${type} #${resource.number} - bot not assigned or author`);
         return false;
       }
     }
@@ -349,13 +344,16 @@ export class GitHubProvider extends BaseProvider {
     }
 
     try {
-      // Check for recent comments (last 5 comments)
-      const comments = await this.comments.listComments(repository, prNumber, 5);
+      const [issueComments, reviewComments] = await Promise.all([
+        this.comments.listComments(repository, prNumber, 5),
+        this.comments.listReviewComments(repository, prNumber, 5),
+      ]);
 
-      // If there are any comments, consider it as having interaction
-      // The deduplication system will handle if the bot already commented
-      if (comments.length > 0) {
-        logger.debug(`PR #${prNumber} has ${comments.length} recent comment(s)`);
+      const total = issueComments.length + reviewComments.length;
+      if (total > 0) {
+        logger.debug(
+          `PR #${prNumber} has ${issueComments.length} issue comment(s) and ${reviewComments.length} review comment(s)`
+        );
         return true;
       }
 
@@ -363,7 +361,6 @@ export class GitHubProvider extends BaseProvider {
       return false;
     } catch (error) {
       logger.warn(`Failed to check comments for PR #${prNumber}`, error);
-      // On error, assume there is interaction to avoid missing important events
       return true;
     }
   }
@@ -425,8 +422,43 @@ export class GitHubProvider extends BaseProvider {
         this.botUsernames
       );
 
-      logger.debug(`Calling event handler for ${resourceType} #${resourceNumber}`);
-      await eventHandler(normalizedEvent, reactor);
+      // For PRs, enrich with the latest review comment and deduplicate
+      // using its timestamp (the Watcher-level dedup is skipped for polled events).
+      if (resourceType === 'pull_request') {
+        const lastReview = await this.comments.getLastReviewComment(repository, resourceNumber);
+
+        if (!lastReview || reactor.isBotAuthor(lastReview.author)) {
+          logger.debug(`Skipping polled PR #${resourceNumber} - no non-bot review comment`);
+          continue;
+        }
+
+        const resKey = `${repository}:${resourceNumber}`;
+        const lastProcessedTs = this.processedReviewTs.get(resKey);
+        const reviewTs = lastReview.createdAt.getTime();
+
+        if (lastProcessedTs && reviewTs <= lastProcessedTs) {
+          logger.debug(`Skipping polled PR #${resourceNumber} - review comment already processed`);
+          continue;
+        }
+
+        normalizedEvent.resource.comment = {
+          body: lastReview.body,
+          author: lastReview.author,
+        };
+        // Mark as polled so the Watcher skips its own dedup
+        normalizedEvent.metadata.polled = true;
+
+        logger.debug(`Enriched polled PR #${resourceNumber} with review comment by ${lastReview.author}`);
+
+        logger.debug(`Calling event handler for ${resourceType} #${resourceNumber}`);
+        await eventHandler(normalizedEvent, reactor);
+
+        // Only mark as processed after the event handler succeeds
+        this.processedReviewTs.set(resKey, reviewTs);
+      } else {
+        logger.debug(`Calling event handler for ${resourceType} #${resourceNumber}`);
+        await eventHandler(normalizedEvent, reactor);
+      }
     }
 
     logger.debug(`Finished processing ${items.length} items from GitHub poll`);

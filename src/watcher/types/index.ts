@@ -13,4 +13,5 @@ export type {
   ServerConfig,
   DeduplicationConfig,
   CommandExecutorConfig,
+  ConfirmationConfig,
 } from './config.js';

@@ -12,6 +12,7 @@ export class ConfigLoader {
     'cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task';
 
   private static readonly DEFAULT_PROMPT_TEMPLATE = './config/event-prompt.hbs';
+  private static readonly DEFAULT_SLACK_PROMPT_TEMPLATE = './config/event-prompt-slack.hbs';
 
   /**
    * Primary entry point. Loads config from file (optional) then overlays env vars.
@@ -50,17 +51,18 @@ export class ConfigLoader {
    *   WATCHER_LOG_LEVEL             — debug | info | warn | error (default: info)
    */
   static loadWithEnv(configPath: string): WatcherConfig {
-    let fileConfig: WatcherConfig | null = null;
+    let base = this.defaultConfig();
 
     if (existsSync(configPath)) {
       logger.info(`Loading configuration from ${configPath}`);
-      fileConfig = this.loadFile(configPath);
+      const fileConfig = this.loadFile(configPath);
+      base = this.merge(base, fileConfig);
     } else {
       logger.info(`No config file at ${configPath}, using environment variables`);
     }
 
     const envConfig = this.buildFromEnv();
-    const merged = this.merge(fileConfig ?? this.defaultConfig(), envConfig);
+    const merged = this.merge(base, envConfig);
     this.validate(merged);
     return merged;
   }
@@ -185,6 +187,23 @@ export class ConfigLoader {
       };
     }
 
+    // Confirmation gate — auto-enabled when CONFIRMATION_ENABLED is set
+    // Credentials are reused from the Slack provider (SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET)
+    if (process.env.CONFIRMATION_ENABLED === 'true') {
+      result.confirmation = {
+        enabled: true,
+      };
+      if (process.env.CONFIRMATION_CHANNEL) {
+        result.confirmation.channel = process.env.CONFIRMATION_CHANNEL;
+      }
+      if (process.env.CONFIRMATION_TIMEOUT_MINUTES) {
+        result.confirmation.timeoutMinutes = parseInt(
+          process.env.CONFIRMATION_TIMEOUT_MINUTES,
+          10
+        );
+      }
+    }
+
     // Command override
     if (process.env.WATCHER_COMMAND) {
       result.commandExecutor = {
@@ -223,6 +242,29 @@ export class ConfigLoader {
         const ov = override.commandExecutor;
         if (ov.enabled !== undefined) result.commandExecutor.enabled = ov.enabled;
         if (ov.command) result.commandExecutor.command = ov.command;
+        if (ov.promptTemplate) result.commandExecutor.promptTemplate = ov.promptTemplate;
+        if (ov.promptTemplateFile) result.commandExecutor.promptTemplateFile = ov.promptTemplateFile;
+        if (ov.prompts) {
+          result.commandExecutor.prompts = {
+            ...result.commandExecutor.prompts,
+            ...ov.prompts,
+          };
+        }
+        if (ov.useStdin !== undefined) result.commandExecutor.useStdin = ov.useStdin;
+        if (ov.followUp !== undefined) result.commandExecutor.followUp = ov.followUp;
+        if (ov.followUpTemplate) result.commandExecutor.followUpTemplate = ov.followUpTemplate;
+        if (ov.dryRun !== undefined) result.commandExecutor.dryRun = ov.dryRun;
+      }
+    }
+
+    if (override.confirmation) {
+      if (!result.confirmation) {
+        result.confirmation = override.confirmation;
+      } else {
+        const ov = override.confirmation;
+        if (ov.enabled !== undefined) result.confirmation.enabled = ov.enabled;
+        if (ov.channel) result.confirmation.channel = ov.channel;
+        if (ov.timeoutMinutes !== undefined) result.confirmation.timeoutMinutes = ov.timeoutMinutes;
       }
     }
 
@@ -260,6 +302,9 @@ export class ConfigLoader {
         enabled: true,
         command: this.DEFAULT_COMMAND,
         promptTemplateFile: this.DEFAULT_PROMPT_TEMPLATE,
+        prompts: {
+          slack: this.DEFAULT_SLACK_PROMPT_TEMPLATE,
+        },
         useStdin: true,
         followUp: true,
       },
