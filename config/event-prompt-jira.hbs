@@ -102,11 +102,9 @@ URL: {{resourceLink}}
 - Find the best Template according to the Project key
 - Create a sandbox using that Template with a name in the format "ai-<UUID>" — generate a random UUID (not human-readable, not derived from the issue/project name), truncated to 16 characters max (sandbox name max length is 20)
 - Target that sandbox and start working in the related workspace
+  - Fetch the full Jira issue using the issue key above, including all comments, to get complete context before starting work
   {{#if resource.comment}}
-  - **This event was triggered by a comment** - Focus on addressing what was requested in the comment above
-  - Fetch all previous comments on the Jira issue for full context, but prioritize the new comment's request
-  {{else}}
-  - Fetch all comments and context related to this Jira issue and understand the task accurately
+  - **This event was triggered by a comment** - Focus on addressing what was requested in the new comment above, using the full issue and comment history for context
   {{/if}}
   {{#if resource.assignees}}
   - If code change is required
