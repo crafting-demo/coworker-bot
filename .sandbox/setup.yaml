@@ -1,0 +1,16 @@
+hooks:
+  post-checkout:
+    cmd: |
+      set -ex
+      command -v openresty >/dev/null || {
+        sudo apt-get update
+        sudo apt-get install -y openresty
+      }
+      command -v pnpm >/dev/null || {
+        sudo npm install -g pnpm
+      }
+      pnpm install
+daemons:
+  watcher:
+    run:
+      cmd: pnpm start
