@@ -7,7 +7,8 @@ hooks:
         sudo apt-get install -y nginx libnginx-mod-http-lua
       }
       command -v npm >/dev/null || {
-        sudo apt-get install -y nodejs npm
+        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+        sudo apt-get install -y nodejs
       }
       command -v pnpm >/dev/null || {
         sudo npm install -g pnpm
