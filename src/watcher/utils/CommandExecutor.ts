@@ -162,6 +162,44 @@ export class CommandExecutor {
     return cleaned.slice(-6).toLowerCase();
   }
 
+  /**
+   * Try to build a session URL from command output.
+   *
+   * When the command is run with `--print json`, it outputs a JSON object
+   * containing the session ID. This method extracts the ID and constructs
+   * a clickable link using the SANDBOX_SYSTEM_URL environment variable.
+   *
+   * Returns undefined if SANDBOX_SYSTEM_URL is not set, the output is not
+   * valid JSON, or no session ID field is found.
+   */
+  private buildSessionUrl(output: string): string | undefined {
+    const sandboxSystemUrl = process.env['SANDBOX_SYSTEM_URL'];
+    if (!sandboxSystemUrl) {
+      return undefined;
+    }
+
+    try {
+      const parsed = JSON.parse(output.trim()) as Record<string, unknown>;
+      // Handle nested {"session":{"id":"..."}} format returned by `cs llm session run --print json`
+      const session = parsed['session'];
+      const sessionId =
+        (typeof session === 'object' && session !== null
+          ? (session as Record<string, unknown>)['id']
+          : undefined) ??
+        parsed['id'] ??
+        parsed['session_id'] ??
+        parsed['llmsession_id'];
+      if (typeof sessionId === 'string' && sessionId) {
+        const base = sandboxSystemUrl.replace(/\/$/, '');
+        return `${base}/llmsession?llmsession_id=${sessionId}`;
+      }
+    } catch {
+      // Not JSON — skip
+    }
+
+    return undefined;
+  }
+
   async execute(
     eventId: string,
     displayString: string,
@@ -203,12 +241,29 @@ export class CommandExecutor {
       const output = await this.runCommand(eventId, prompt, event);
 
       // Follow-up with output if enabled
-      if (this.config.followUp && output) {
-        const followUpComment = this.config.followUpTemplate
-          ? this.config.followUpTemplate.replace('{output}', output.trim())
-          : output;
-        await reactor.postComment(followUpComment);
-        logger.debug(`Posted follow-up comment with command output`);
+      if (this.config.followUp) {
+        const sessionUrl = this.buildSessionUrl(output);
+        // Provider-formatted clickable link (e.g. [text|url] for Jira, [text](url) for GitHub)
+        const sessionLink = sessionUrl
+          ? formatLink('View agent session', sessionUrl, event.provider)
+          : undefined;
+
+        let followUpComment: string | undefined;
+        if (this.config.followUpTemplate) {
+          followUpComment = this.config.followUpTemplate
+            .replace('{output}', output.trim())
+            .replace('{sessionUrl}', sessionUrl ?? '')
+            .replace('{sessionLink}', sessionLink ?? '');
+        } else if (sessionLink) {
+          followUpComment = sessionLink;
+        } else if (output) {
+          followUpComment = output;
+        }
+
+        if (followUpComment) {
+          await reactor.postComment(followUpComment);
+          logger.debug(`Posted follow-up comment with command output`);
+        }
       }
     } catch (error) {
       logger.error('Command execution failed', error);

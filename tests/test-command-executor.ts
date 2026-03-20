@@ -373,6 +373,251 @@ test('CommandExecutor execute() - applies followUpTemplate with {output} placeho
 });
 
 // ============================================================
+// execute() — session URL from JSON output
+// ============================================================
+
+test('CommandExecutor execute() - posts session URL from nested session.id (cs llm session run format)', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(
+      baseConfig({
+        command: 'echo \'{"session":{"id":"d6u8s0guop4c73d7q2v0","name":"my-session"}}\'',
+        followUp: true,
+      })
+    );
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'display', makeEvent({ provider: 'github' }), reactor);
+    assert.equal(comments.length, 2);
+    assert.equal(
+      comments[1],
+      '[View agent session](https://sandbox.example.com/llmsession?llmsession_id=d6u8s0guop4c73d7q2v0)'
+    );
+  } finally {
+    if (saved !== undefined) {
+      process.env['SANDBOX_SYSTEM_URL'] = saved;
+    } else {
+      delete process.env['SANDBOX_SYSTEM_URL'];
+    }
+  }
+});
+
+test('CommandExecutor execute() - posts session URL when output is JSON with top-level id', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(
+      baseConfig({
+        command: 'echo \'{"id":"abc-123"}\'',
+        followUp: true,
+      })
+    );
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'display', makeEvent({ provider: 'github' }), reactor);
+    assert.equal(comments.length, 2);
+    assert.equal(
+      comments[1],
+      '[View agent session](https://sandbox.example.com/llmsession?llmsession_id=abc-123)'
+    );
+  } finally {
+    if (saved !== undefined) {
+      process.env['SANDBOX_SYSTEM_URL'] = saved;
+    } else {
+      delete process.env['SANDBOX_SYSTEM_URL'];
+    }
+  }
+});
+
+test('CommandExecutor execute() - strips trailing slash from SANDBOX_SYSTEM_URL', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com/';
+  try {
+    const executor = new CommandExecutor(
+      baseConfig({
+        command: 'echo \'{"session":{"id":"abc-123"}}\'',
+        followUp: true,
+      })
+    );
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'display', makeEvent({ provider: 'github' }), reactor);
+    assert.equal(
+      comments[1],
+      '[View agent session](https://sandbox.example.com/llmsession?llmsession_id=abc-123)'
+    );
+  } finally {
+    if (saved !== undefined) {
+      process.env['SANDBOX_SYSTEM_URL'] = saved;
+    } else {
+      delete process.env['SANDBOX_SYSTEM_URL'];
+    }
+  }
+});
+
+test('CommandExecutor execute() - injects {sessionUrl} into followUpTemplate', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(
+      baseConfig({
+        command: 'echo \'{"session":{"id":"abc-123"}}\'',
+        followUp: true,
+        followUpTemplate: 'View agent session: {sessionUrl}',
+      })
+    );
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'display', makeEvent(), reactor);
+    assert.equal(
+      comments[1],
+      'View agent session: https://sandbox.example.com/llmsession?llmsession_id=abc-123'
+    );
+  } finally {
+    if (saved !== undefined) {
+      process.env['SANDBOX_SYSTEM_URL'] = saved;
+    } else {
+      delete process.env['SANDBOX_SYSTEM_URL'];
+    }
+  }
+});
+
+test('CommandExecutor execute() - {sessionLink} uses GitHub markdown format for github provider', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(
+      baseConfig({
+        command: 'echo \'{"session":{"id":"abc-123"}}\'',
+        followUp: true,
+        followUpTemplate: '{sessionLink}',
+      })
+    );
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'display', makeEvent({ provider: 'github' }), reactor);
+    assert.equal(
+      comments[1],
+      '[View agent session](https://sandbox.example.com/llmsession?llmsession_id=abc-123)'
+    );
+  } finally {
+    if (saved !== undefined) {
+      process.env['SANDBOX_SYSTEM_URL'] = saved;
+    } else {
+      delete process.env['SANDBOX_SYSTEM_URL'];
+    }
+  }
+});
+
+test('CommandExecutor execute() - {sessionLink} uses Jira wiki-markup format for jira provider', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(
+      baseConfig({
+        command: 'echo \'{"session":{"id":"abc-123"}}\'',
+        followUp: true,
+        followUpTemplate: '{sessionLink}',
+      })
+    );
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'display', makeEvent({ provider: 'jira' }), reactor);
+    assert.equal(
+      comments[1],
+      '[View agent session|https://sandbox.example.com/llmsession?llmsession_id=abc-123]'
+    );
+  } finally {
+    if (saved !== undefined) {
+      process.env['SANDBOX_SYSTEM_URL'] = saved;
+    } else {
+      delete process.env['SANDBOX_SYSTEM_URL'];
+    }
+  }
+});
+
+test('CommandExecutor execute() - {sessionLink} uses Slack mrkdwn format for slack provider', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(
+      baseConfig({
+        command: 'echo \'{"session":{"id":"abc-123"}}\'',
+        followUp: true,
+        followUpTemplate: '{sessionLink}',
+      })
+    );
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'display', makeEvent({ provider: 'slack' }), reactor);
+    assert.equal(
+      comments[1],
+      '<https://sandbox.example.com/llmsession?llmsession_id=abc-123|View agent session>'
+    );
+  } finally {
+    if (saved !== undefined) {
+      process.env['SANDBOX_SYSTEM_URL'] = saved;
+    } else {
+      delete process.env['SANDBOX_SYSTEM_URL'];
+    }
+  }
+});
+
+test('CommandExecutor execute() - no-template default posts provider-formatted link', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(
+      baseConfig({
+        command: 'echo \'{"session":{"id":"abc-123"}}\'',
+        followUp: true,
+      })
+    );
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'display', makeEvent({ provider: 'jira' }), reactor);
+    assert.equal(
+      comments[1],
+      '[View agent session|https://sandbox.example.com/llmsession?llmsession_id=abc-123]'
+    );
+  } finally {
+    if (saved !== undefined) {
+      process.env['SANDBOX_SYSTEM_URL'] = saved;
+    } else {
+      delete process.env['SANDBOX_SYSTEM_URL'];
+    }
+  }
+});
+
+test('CommandExecutor execute() - falls back to raw output when output is not JSON', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(
+      baseConfig({
+        command: 'echo "plain text output"',
+        followUp: true,
+      })
+    );
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'display', makeEvent(), reactor);
+    assert.equal(comments[1]!.trim(), 'plain text output');
+  } finally {
+    if (saved !== undefined) {
+      process.env['SANDBOX_SYSTEM_URL'] = saved;
+    } else {
+      delete process.env['SANDBOX_SYSTEM_URL'];
+    }
+  }
+});
+
+test('CommandExecutor execute() - does not post follow-up when SANDBOX_SYSTEM_URL is unset and output is empty', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  delete process.env['SANDBOX_SYSTEM_URL'];
+  try {
+    const executor = new CommandExecutor(baseConfig({ command: 'true', followUp: true }));
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'display', makeEvent(), reactor);
+    assert.equal(comments.length, 1);
+  } finally {
+    if (saved !== undefined) process.env['SANDBOX_SYSTEM_URL'] = saved;
+  }
+});
+
+// ============================================================
 // Handlebars helpers
 // ============================================================
 

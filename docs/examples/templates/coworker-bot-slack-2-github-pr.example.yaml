@@ -72,10 +72,11 @@ workspaces:
               port: 3000
             commandExecutor:
               enabled: true
-              command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
+              command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task --wait=false --print json"
               promptTemplateFile: ./config/event-prompt.hbs
               useStdin: true
               followUp: true
+              followUpTemplate: "View agent session: {sessionLink}"
             deduplication:
               enabled: true
               commentTemplate: "Agent is working on {id}"

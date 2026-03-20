@@ -53,7 +53,7 @@ commandExecutor:
   # which is rendered from the promptTemplateFile template.
   #
   # Use EVENT_SHORT_ID for command/session names (guaranteed unique per event)
-  command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
+  command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task --wait=false --print json"
 
   # Prompt template configuration (optional)
   # There are three ways to configure prompt templates:
@@ -85,11 +85,17 @@ commandExecutor:
   followUp: false
 
   # Template for the follow-up comment (optional, only used when followUp: true)
-  # Use {output} placeholder for the command's stdout.
-  # Useful for surfacing a link to the newly created session or resource.
-  # If not set, the raw command output is posted as-is.
-  # Example: "Agent session started. View progress: {output}"
-  # followUpTemplate: "Session started: {output}"
+  # Supported placeholders:
+  #   {output}      — the command's raw stdout
+  #   {sessionUrl}  — raw session URL (requires SANDBOX_SYSTEM_URL env var;
+  #                   automatically extracted from JSON output when command uses --print json)
+  #   {sessionLink} — provider-formatted clickable link to the session:
+  #                     GitHub/GitLab/Linear: [View agent session](url)
+  #                     Jira:                 [View agent session|url]
+  #                     Slack:                <url|View agent session>
+  # If not set and the command outputs JSON with a session ID, posts a provider-formatted link.
+  # If not set and no session URL is found, posts the raw command output.
+  # followUpTemplate: "View agent session: {sessionLink}"
 
 # Provider configurations
 providers:
