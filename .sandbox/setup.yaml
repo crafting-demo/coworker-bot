@@ -6,6 +6,9 @@ hooks:
         sudo apt-get update
         sudo apt-get install -y nginx libnginx-mod-http-lua
       }
+      command -v npm >/dev/null || {
+        sudo apt-get install -y nodejs npm
+      }
       command -v pnpm >/dev/null || {
         sudo npm install -g pnpm
       }
