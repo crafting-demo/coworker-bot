@@ -18,6 +18,3 @@ daemons:
   watcher:
     run:
       cmd: pnpm start
-  mcp-proxy:
-    run:
-      cmd: nginx -c ~/coworker-bot/config/nginx.conf -g 'daemon off;'
