@@ -111,7 +111,7 @@ workspaces:
       - path: coworker-bot
         repo:
           github:
-            org: $GITHUB_ORG
+            org: ${GITHUB_ORG}
             repo: coworker-bot
         manifest:
           overlays:
