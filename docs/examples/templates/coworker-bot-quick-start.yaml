@@ -24,7 +24,7 @@ env:
   # MUST set both secrets as "Admin Only" + "Not Mountable" in the Crafting
   # Web Console (Secrets → Edit) so they are never written to the filesystem.
   # ---------------------------------------------------------------------------
-  - GITHUB_REPO=heng309/coworker-bot
+  - GITHUB_ORG=heng309
   - GITHUB_WEBHOOK_SECRET=${secret:github-webhook-secret}
 
   # ---------------------------------------------------------------------------
@@ -110,7 +110,9 @@ workspaces:
       # The watcher daemon (below) runs from this directory.
       - path: coworker-bot
         repo:
-          git: git@github.com:crafting-demo/coworker-bot.git
+          github:
+            org: $GITHUB_ORG
+            repo: coworker-bot
         manifest:
           overlays:
             - file: .sandbox/setup.yaml

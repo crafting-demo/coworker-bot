@@ -20,4 +20,4 @@ daemons:
       cmd: pnpm start
   mcp-proxy:
     run:
-      cmd: nginx -c ~/coworker-bot/config/nginx.conf -g 'daemon off;'
+      cmd: nginx -c ./config/nginx.conf -g 'daemon off;'
