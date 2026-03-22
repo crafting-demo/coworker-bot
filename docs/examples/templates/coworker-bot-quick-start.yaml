@@ -24,7 +24,7 @@ env:
   # MUST set both secrets as "Admin Only" + "Not Mountable" in the Crafting
   # Web Console (Secrets → Edit) so they are never written to the filesystem.
   # ---------------------------------------------------------------------------
-  - GITHUB_ORG=heng309
+  - GITHUB_ORG=org
   - GITHUB_WEBHOOK_SECRET=${secret:github-webhook-secret}
 
   # ---------------------------------------------------------------------------
@@ -111,7 +111,7 @@ workspaces:
       - path: coworker-bot
         repo:
           github:
-            org: heng309
+            org: org
             repo: coworker-bot
         manifest:
           overlays:
