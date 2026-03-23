@@ -57,6 +57,8 @@ To prevent triggering the agent twice on the same issue or PR, Watcher uses a **
 2. If the last comment was posted by the configured bot username (case-insensitive) — skip
 3. Otherwise — proceed
 
+The bot username is set via `GITHUB_BOT_USERNAME` (or `options.botUsername` in `watcher.yaml`). It can be the GitHub App's bot username (e.g. `my-app[bot]`) or any arbitrary name. Defaults to `coworker-bot` if not set.
+
 This works because Watcher always posts a comment when it starts processing. If that comment is still the last one, no new human activity has occurred since the last run. If a human has commented since, it means there's new work to do.
 
 Errors fetching comments are treated as "not a duplicate" to avoid silently dropping events.
@@ -176,13 +178,13 @@ providers:
   github:
     enabled: true
     pollingInterval: 60
-    auth:
-      tokenEnv: GITHUB_TOKEN
+    # No auth block needed — the GitHub App installation token is injected
+    # automatically by the nginx mcp-proxy using the GITHUB_ORG env var.
     options:
       webhookSecretEnv: GITHUB_WEBHOOK_SECRET
-      botUsername: my-bot
+      botUsername: coworker-bot # optional; defaults to "coworker-bot"
       repositories:
         - owner/repo
 ```
 
-Secrets are never stored in plain text — they reference environment variables (`tokenEnv`, `webhookSecretEnv`) or files (`tokenFile`, `webhookSecretFile`).
+GitHub authentication uses the GitHub App installation token, injected by the nginx mcp-proxy — no token env var is configured in the provider. Webhook secrets and other non-auth values still reference environment variables (`webhookSecretEnv`) or files (`webhookSecretFile`).

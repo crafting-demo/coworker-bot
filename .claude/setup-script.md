@@ -34,68 +34,45 @@ USER: Enters one or more numbers
 
 ### GitHub Credentials
 
-You'll need a **GitHub Personal Access Token (PAT)** so coworker-bot can read issues/PRs and post comments.
+GitHub authentication uses a **GitHub App installation token** — no personal access token or separate bot account is needed.
 
-**Step 1 — Create a bot account (if you don't have one):**
+**Step 1 — Connect the GitHub App:**
 
-Create a dedicated GitHub account for the agent (e.g. `my-org-bot`). This is the account that will post comments and open PRs. Do not use your personal account — the watcher skips events where the last comment is from the bot, so using your own account would suppress your own events.
+ACTION: Open the Crafting Web Console for the user and guide them to **Connect → GitHub**.
 
-Add the bot as a collaborator on the repositories it needs to access.
+Connect your GitHub App to the Crafting org and grant it access to the repos you want to monitor. The installation token is automatically injected by the sandbox — no secret needs to be created for authentication.
 
-**Step 2 — Create a fine-grained token:**
+Note the **org name** where the app is installed — you'll need it as `GITHUB_ORG`.
 
-ACTION: Open the GitHub fine-grained token creation page for the user: https://github.com/settings/personal-access-tokens/new
+Note the **bot username** for deduplication — optional, defaults to `coworker-bot`. It can be the GitHub App's bot username (e.g. `my-app[bot]`), or any arbitrary name you choose. Events where the last comment is from this name are skipped to prevent the bot from re-processing its own work.
 
-On that page, configure:
-- **Token name:** `coworker-bot`
-- **Expiration:** 90 days (or your preference)
-- **Repository access:** Select the repos you want to monitor
-- **Repository permissions:**
-  - **Issues:** Read and write
-  - **Pull requests:** Read and write
-  - **Metadata:** Read-only (auto-included)
+STOP: Go connect the GitHub App in the Web Console. Let me know when it's done, and share the org name and the bot username you want to use.
 
-Click **"Generate token"** and **copy it immediately**.
+USER: Confirms app is connected and provides org name + bot username
 
-**Step 3 — Generate a webhook secret:**
+**Step 2 — Generate a webhook secret:**
 
 Open a **separate terminal** and run:
 
 ```
-GITHUB_WEBHOOK_SECRET=$(openssl rand -hex 32)
-echo $GITHUB_WEBHOOK_SECRET
+echo "$(openssl rand -hex 32)" | cs secret create github-webhook-secret --shared -f -
 ```
 
-Copy the output — this is your webhook secret.
+After creating the secret, mark it as **Admin Only** and **Not Mountable** in the Web Console (Secrets → select secret → Edit).
 
-**Step 4 — Store both as Crafting secrets:**
+STOP: Go create the webhook secret and mark it in the Web Console. Let me know when it's done.
 
-In the same separate terminal:
+USER: Confirms secret is stored
 
-```
-echo "YOUR_PAT_HERE" | cs secret create github-pat --shared -f -
-echo "YOUR_WEBHOOK_SECRET_HERE" | cs secret create github-webhook-secret --shared -f -
-```
-
-After creating each secret, mark it as **Admin Only** and **Not Mountable** in the Web Console (Secrets → select secret → Edit).
-
-**Do not paste your token here** — always use a separate terminal for secrets.
-
-STOP: Go create the PAT and webhook secret, store them with the commands above, and mark them in the Web Console. Let me know when it's done.
-
-USER: Confirms secrets are stored
-
-Now a few more details for GitHub configuration.
-
-STOP: What's the **GitHub username** of your bot account? (Used for deduplication so coworker-bot doesn't re-process its own comments)
-
-USER: Provides username
+**Step 3 — Repositories:**
 
 STOP: Which **repositories** should coworker-bot monitor? Format: `owner/repo`, comma-separated. Example: `myorg/frontend, myorg/backend`
 
-USER: Provides repositories
+(Or say "auto" — repositories are auto-detected from the installation token via `GET /installation/repositories`.)
 
-[Store the GitHub bot username, repository list, and that GITHUB_WEBHOOK_SECRET was created — needed for template generation later.]
+USER: Provides repositories or "auto"
+
+[Store the GitHub org name, bot username, repository list, and that GITHUB_WEBHOOK_SECRET was created — needed for template generation later.]
 
 GitHub is all set!
 
@@ -231,12 +208,13 @@ ACTION: Create a working copy of the template at `_local/setup-generated.yaml` (
 1. Start from the chosen base template
 2. Update the git checkout URL in `workspaces[0].checkouts[0].repo.git` to match the user's actual remote (or the original if they're using the default)
 3. Fill in the required `env` values collected during the wizard:
-   - `GITHUB_BOT_USERNAME` — bot account username (GitHub)
-   - `GITHUB_REPOSITORIES` — comma-separated `owner/repo` list (GitHub)
+   - `GITHUB_ORG` — org where the GitHub App is installed (GitHub)
+   - `GITHUB_BOT_USERNAME` — GitHub App bot username, e.g. `my-app[bot]` (GitHub)
+   - `GITHUB_REPOSITORIES` — comma-separated `owner/repo` list, or omit to auto-detect (GitHub)
    - `LINEAR_BOT_USERNAME` — Linear bot display name (Linear, if selected)
    - `LINEAR_TEAMS` — comma-separated team keys, or omit the line entirely if "all" (Linear, if selected)
 4. Ensure the `env` secret references match what was created:
-   - GitHub: `${secret:github-pat}`, `${secret:github-webhook-secret}`
+   - GitHub: `${secret:github-webhook-secret}`
    - Linear: `${secret:linear-pat}`, `${secret:linear-webhook-secret}`
    - Slack: `${secret:slack-bot-token}`, `${secret:slack-signing-secret}`
 5. If providers were not selected, remove their corresponding `env` entries, `containers`, `endpoints`, and `customizations` from the template. Keep only what's needed.
@@ -395,7 +373,7 @@ USER: Questions or ready to test
 
 - **Track all user input** — every piece of information collected (usernames, repos, teams) is needed for template generation. Don't lose it between sections.
 - **Never handle secrets directly** — always instruct the user to run `cs secret create` in a separate terminal. Never ask for, accept, or run commands containing tokens/secrets. If a user pastes one accidentally, don't echo it.
-- **Secret names must match the template** — the `cs secret create` name must match the `${secret:name}` in the sandbox template YAML. The wizard standardizes on hyphen naming: `github-pat`, `github-webhook-secret`, `linear-pat`, `linear-webhook-secret`, `slack-bot-token`, `slack-signing-secret`.
+- **Secret names must match the template** — the `cs secret create` name must match the `${secret:name}` in the sandbox template YAML. The wizard standardizes on hyphen naming: `github-webhook-secret`, `linear-pat`, `linear-webhook-secret`, `slack-bot-token`, `slack-signing-secret`. GitHub no longer uses `github-pat` — authentication is via the GitHub App installation.
 - **Template YAML validation** — always validate generated templates with `/home/owner/yaml-linter/yaml-lint-go` before creating them.
 - **Git remote detection** — use `git remote get-url origin` to detect the user's repo URL. Fall back to asking if the command fails.
 - **Don't overwhelm** — only show provider sections relevant to the user's selection. Skip everything else.

@@ -214,9 +214,6 @@ This flow requires minimal configuration in your `config/watcher.yaml`:
 providers:
   github:
     enabled: true
-    auth:
-      type: token
-      tokenEnv: GITHUB_PERSONAL_ACCESS_TOKEN
     options:
       webhookSecretEnv: GITHUB_WEBHOOK_SECRET
       repositories:

@@ -12,14 +12,14 @@
 #   1. Create secrets (see templates/README.md for token generation):
 #        echo "YOUR_JIRA_TOKEN"  | cs secret create jira-api-token --shared -f -
 #        echo "$(openssl rand -hex 32)" | cs secret create jira-webhook-secret --shared -f -
-#        echo "YOUR_GITHUB_PAT"  | cs secret create github-pat --shared -f -
-#   2. Fill in the required env vars below: JIRA_BASE_URL and JIRA_EMAIL
-#   3. In the watcher.yaml content (below), replace the two placeholder values:
+#   2. Connect github app: in Web Console → Connect → Github, connect to your github app and org repos.
+#   3. Fill in the required env vars below: JIRA_BASE_URL, JIRA_EMAIL, and GITHUB_ORG
+#   4. In the watcher.yaml content (below), replace the two placeholder values:
 #        botUsername  — Jira display name of the bot account
 #        projects     — Jira project key(s) to monitor
-#   4. Create template:  cs template create coworker-bot-jira-github \
+#   5. Create template:  cs template create coworker-bot-jira-github \
 #                          ./docs/examples/templates/coworker-bot-jira-2-github-pr.example.yaml
-#   5. Create sandbox:   cs sandbox create coworker-bot -t coworker-bot-jira-github
+#   6. Create sandbox:   cs sandbox create coworker-bot -t coworker-bot-jira-github
 #
 # After sandbox is created:
 #   6. Pin the sandbox:  cs sandbox pin coworker-bot  (keeps it running 24/7)
@@ -64,13 +64,10 @@ env:
   - JIRA_EMAIL=coworker-bot@yourcompany.com
 
   # ---------------------------------------------------------------------------
-  # GitHub secret — used by the MCP server to create PRs and push code.
-  #
-  # Required scopes: repo, read:org
-  # Create: echo "YOUR_TOKEN" | cs secret create github-pat --shared -f -
-  # RECOMMENDED: mark as "Admin Only" + "Not Mountable" in the Web Console.
+  # GITHUB_ORG is the name of the organization where the github app is installed.
+  # Connect github app: in Web Console → Connect → Github, connect to your github app and org repos.
   # ---------------------------------------------------------------------------
-  - GITHUB_ORG=org
+  - GITHUB_ORG=your-github-app-installed-org
 
 endpoints:
   # ---------------------------------------------------------------------------
@@ -98,7 +95,7 @@ endpoints:
   # Internal GitHub MCP endpoint — used by Coding Agent sessions to interact
   # with GitHub (read issues/PRs, create branches, push commits, open PRs).
   # type: INTERNAL — not publicly accessible, only reachable within the sandbox.
-  # The mcp-proxy container injects the Authorization header before forwarding.
+  # The github mcp proxy injects the Authorization header before forwarding.
   # ---------------------------------------------------------------------------
   - name: github-mcp
     type: INTERNAL
@@ -115,7 +112,7 @@ endpoints:
   # ---------------------------------------------------------------------------
   # Internal Jira MCP endpoint — used by Coding Agent sessions to read Jira
   # issue details and post follow-up comments when work is complete.
-  # Also routed through mcp-proxy which injects the Jira API token as a header.
+  # Also routed through mcp proxy which injects the Jira API token as a header.
   # ---------------------------------------------------------------------------
   - name: jira-mcp
     type: INTERNAL
@@ -149,7 +146,8 @@ workspaces:
       - path: coworker-bot
         repo:
           github:
-            org: org
+            # Fill the name of the organization where the github app is installed.
+            org: your-github-app-installed-org
             repo: coworker-bot
         manifest:
           overlays:
@@ -205,7 +203,7 @@ containers:
   # GitHub MCP server — exposes GitHub tools (issues, PRs, repos) to the
   # Crafting Coding Agent sessions running inside this sandbox.
   # The token is NOT set here — it is injected as an Authorization header by
-  # the mcp-proxy container below, so this container never holds the secret.
+  # the mcp proxy in dev workspace, so this container never holds the secret.
   #
   # GITHUB_TOOLSETS controls which tool groups are available to the agent.
   # Available sets: repos, issues, pull_requests, code_security, orgs, ...

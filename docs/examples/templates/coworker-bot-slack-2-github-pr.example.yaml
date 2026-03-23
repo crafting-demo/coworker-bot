@@ -1,13 +1,66 @@
+# =============================================================================
+# coworker-bot — Slack Message → AI Agent → GitHub PR
+#
+# Workflow:
+#   1. A Slack message @mentions the bot or is posted in a monitored channel
+#   2. The watcher detects the event (via webhook)
+#   3. A Crafting Coding Agent session is launched with the message as context
+#   4. The agent uses GitHub MCP tools to implement the change and open a PR
+#   5. The agent uses Slack MCP tools to post a follow-up reply in the thread
+#
+# SETUP STEPS before creating this template:
+#   1. Create secrets:
+#        echo "$(openssl rand -hex 32)" | cs secret create github-webhook-secret --shared -f -
+#        echo "YOUR_SLACK_BOT_TOKEN"    | cs secret create slack-bot-token --shared -f -
+#        echo "YOUR_SLACK_SIGNING_SECRET" | cs secret create slack-signing-secret --shared -f -
+#   2. Connect github app: in Web Console → Connect → Github, connect to your github app and org repos.
+#   3. Fill in the required env vars below: GITHUB_ORG and GITHUB_REPOSITORIES; GITHUB_BOT_USERNAME is optional (default: "coworker-bot")
+#   4. Create template:  cs template create coworker-bot-slack-github \
+#                          ./docs/examples/templates/coworker-bot-slack-2-github-pr.example.yaml
+#   5. Create sandbox:   cs sandbox create coworker-bot -t coworker-bot-slack-github
+#
+# After sandbox is created:
+#   6. Pin the sandbox:  cs sandbox pin coworker-bot  (keeps it running 24/7)
+#   7. Authorize MCP:    Web Console → Connect → LLM → Discovery → Authorize
+#   8. Set GitHub webhook: see docs/setup/github.md
+#   9. Configure Slack:    see docs/setup/slack.md
+# =============================================================================
+
 env:
-  - GITHUB_ORG=org
+  # ---------------------------------------------------------------------------
+  # GITHUB_ORG is the name of the organization where the github app is installed.
+  # Connect github app: in Web Console → Connect → Github, connect to your github app and org repos.
+  # Secrets — create these before applying the template:
+  #   echo "$(openssl rand -hex 32)" | cs secret create github-webhook-secret --shared -f -
+  #
+  # MUST set secrets as "Admin Only" + "Not Mountable" in the Crafting
+  # Web Console (Secrets → Edit) so they are never written to the filesystem.
+  # ---------------------------------------------------------------------------
+  - GITHUB_ORG=your-github-app-installed-org
   - GITHUB_WEBHOOK_SECRET=${secret:github-webhook-secret}
-  - GITHUB_BOT_USERNAME=your-bot-github-username
-  - GITHUB_REPOSITORIES=owner/repo
+
+  # Bot name for deduplication — events where the last comment is from this name are skipped.
+  # Optional — defaults to "coworker-bot" if not set.
+  # Set to the GitHub App bot username (e.g. my-app[bot]) or any arbitrary name.
+  # - GITHUB_BOT_USERNAME=coworker-bot
+
+  # Repositories to monitor, comma-separated: owner/repo1,owner/repo2. Optional.
+  # - GITHUB_REPOSITORIES=owner/repo
+
+  # ---------------------------------------------------------------------------
+  # Slack secrets — create these before applying the template.
+  # MUST set as "Admin Only" + "Not Mountable" in the Web Console.
+  # ---------------------------------------------------------------------------
   - SLACK_BOT_TOKEN=${secret:slack-bot-token}
   - SLACK_SIGNING_SECRET=${secret:slack-signing-secret}
   - SLACK_MCP_XOXB_TOKEN=${secret:slack-bot-token}
 
 endpoints:
+  # ---------------------------------------------------------------------------
+  # Public webhook endpoint — receives events pushed from GitHub and Slack.
+  #
+  # auth_proxy MUST be disabled — GitHub and Slack send unauthenticated POST requests.
+  # ---------------------------------------------------------------------------
   - name: webhook
     http:
       routes:
@@ -17,6 +70,13 @@ endpoints:
           path_prefix: /
       auth_proxy:
         disabled: true
+
+  # ---------------------------------------------------------------------------
+  # Internal GitHub MCP endpoint — used by Coding Agent sessions to interact
+  # with GitHub (read issues/PRs, create branches, push commits, open PRs).
+  # type: INTERNAL — not publicly accessible, only reachable within the sandbox.
+  # The mcp proxy injects the Authorization header before forwarding.
+  # ---------------------------------------------------------------------------
   - name: github-mcp
     type: INTERNAL
     http:
@@ -28,6 +88,11 @@ endpoints:
       auth_proxy:
         disabled: true
       path: /mcp
+
+  # ---------------------------------------------------------------------------
+  # Internal Slack MCP endpoint — used by Coding Agent sessions to post
+  # follow-up replies in Slack threads when work is complete.
+  # ---------------------------------------------------------------------------
   - name: slack-mcp
     type: INTERNAL
     http:
@@ -43,23 +108,32 @@ endpoints:
 workspaces:
   - name: dev
     ports:
+      # The watcher listens on port 3000 for incoming webhook events.
       - name: webhook
         port: 3000
         protocol: HTTP/TCP
+      # The github mcp proxy listens on port 8082.
       - name: github
         port: 8082
         protocol: HTTP/TCP
     checkouts:
+      # The coworker-bot repo is checked out here on sandbox creation.
+      # The watcher daemon (below) runs from this directory.
       - path: coworker-bot
         repo:
           github:
-            org: org
+            # Fill the name of the organization where the github app is installed.
+            org: your-github-app-installed-org
             repo: coworker-bot
         manifest:
           overlays:
             - file: .sandbox/setup.yaml
             - file: .sandbox/proxy.yaml
 
+    # -------------------------------------------------------------------------
+    # watcher.yaml — injected on every sandbox start (overwrite: true).
+    # Edit this config here in the template, not inside the running sandbox.
+    # -------------------------------------------------------------------------
     system:
       files:
         - path: ~/coworker-bot/config/watcher.yaml
@@ -87,6 +161,16 @@ workspaces:
       life_time: ALWAYS
 
 containers:
+  # ---------------------------------------------------------------------------
+  # GitHub MCP server — exposes GitHub tools (issues, PRs, repos) to the
+  # Crafting Coding Agent sessions running inside this sandbox.
+  # The token is NOT set here — it is injected as an Authorization header by
+  # the mcp proxy in dev workspace, so this container never holds the secret.
+  #
+  # GITHUB_TOOLSETS controls which tool groups are available to the agent.
+  # Available sets: repos, issues, pull_requests, code_security, orgs, ...
+  # Remove sets you don't need to reduce the tool surface area.
+  # ---------------------------------------------------------------------------
   - name: github-mcp
     image: ghcr.io/github/github-mcp-server
     args:
@@ -97,6 +181,11 @@ containers:
       - name: github
         port: 8082
         protocol: HTTP/TCP
+
+  # ---------------------------------------------------------------------------
+  # Slack MCP server — exposes Slack tools (read messages, post replies) to
+  # Crafting Coding Agent sessions running inside this sandbox.
+  # ---------------------------------------------------------------------------
   - name: slack-mcp
     image: ghcr.io/korotovsky/slack-mcp-server:latest
     entrypoint:
@@ -112,6 +201,15 @@ containers:
         port: 8081
         protocol: HTTP/TCP
 
+# =============================================================================
+# MCP server registrations — makes GitHub and Slack tools available to all
+# Crafting LLM sessions running inside this sandbox.
+#
+# REQUIRED MANUAL STEP after creating the sandbox:
+#   Web Console → Connect → LLM → Discovery tab → click "Authorize"
+#
+# Without this step, Coding Agent sessions cannot use any MCP tools.
+# =============================================================================
 customizations:
   - mcp_server:
       endpoint: github-mcp

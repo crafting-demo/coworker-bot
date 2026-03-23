@@ -1,3 +1,4 @@
+import { spawnSync } from 'child_process';
 import { BaseProvider } from '../BaseProvider.js';
 import type {
   ProviderConfig,
@@ -26,6 +27,8 @@ export class GitHubProvider extends BaseProvider {
   private poller: GitHubPoller | undefined;
   private comments: GitHubComments | undefined;
   private token: string | undefined;
+  private tokenExpiry: number = 0;
+  private static readonly TOKEN_TTL_MS = 55 * 60 * 1000; // 55 minutes, matching nginx cache TTL
   private botUsernames: string[] = [];
 
   private static readonly DEFAULT_WEBHOOK_EVENTS: Record<string, GitHubEventConfig> = {
@@ -65,15 +68,23 @@ export class GitHubProvider extends BaseProvider {
     const modes: string[] = [];
 
     if (config.auth) {
+      // Manual token from watcher.yaml auth block — static, no refresh.
       this.token = ConfigLoader.resolveSecret(
         config.auth.token,
         config.auth.tokenEnv,
         config.auth.tokenFile
       );
-
       if (this.token) {
-        this.comments = new GitHubComments(this.token);
+        this.tokenExpiry = Infinity;
+        this.comments = new GitHubComments(() => this.token ?? '');
       }
+    } else if (process.env.GITHUB_ORG) {
+      // GitHub App installation token fetched via wsenv, refreshed automatically every 55 minutes.
+      this.refreshTokenIfNeeded();
+      this.comments = new GitHubComments(() => {
+        this.refreshTokenIfNeeded();
+        return this.token ?? '';
+      });
     }
 
     const options = config.options as
@@ -89,25 +100,10 @@ export class GitHubProvider extends BaseProvider {
         }
       | undefined;
 
-    // Read bot username(s) for deduplication — auto-detect from PAT if not configured
-    if (options?.botUsername) {
-      this.botUsernames = Array.isArray(options.botUsername)
-        ? options.botUsername
-        : [options.botUsername];
-      logger.debug(`GitHub bot usernames configured: ${this.botUsernames.join(', ')}`);
-    } else if (this.comments) {
-      const detected = await this.comments.getAuthenticatedUser();
-      if (detected) {
-        this.botUsernames = [detected];
-        logger.info(`GitHub bot username auto-detected from PAT: ${detected}`);
-      } else {
-        logger.warn(
-          'GitHub: botUsername not configured and auto-detection failed - deduplication will not work'
-        );
-      }
-    } else {
-      logger.warn('GitHub: No botUsername configured - deduplication will not work');
-    }
+    // Read bot username(s) for deduplication — defaults to 'coworker-bot' if not set
+    const rawBotUsername = options?.botUsername ?? 'coworker-bot';
+    this.botUsernames = Array.isArray(rawBotUsername) ? rawBotUsername : [rawBotUsername];
+    logger.debug(`GitHub bot usernames: ${this.botUsernames.join(', ')}`);
 
     // Resolve webhook secret if provided
     const webhookSecret = ConfigLoader.resolveSecret(
@@ -132,12 +128,12 @@ export class GitHubProvider extends BaseProvider {
     }
     logger.info(`GitHub event filter: ${Object.keys(this.eventFilter).join(', ')}`);
 
-    // Auto-detect repositories from PAT if not explicitly configured
+    // Auto-detect repositories from installation token if not explicitly configured
     let repositories = options?.repositories ?? [];
     if (this.token && repositories.length === 0 && this.comments) {
       repositories = await this.comments.getAccessibleRepositories();
       if (repositories.length > 0) {
-        logger.info(`GitHub repositories auto-detected from PAT: ${repositories.join(', ')}`);
+        logger.info(`GitHub repositories auto-detected: ${repositories.join(', ')}`);
       }
     }
 
@@ -432,11 +428,53 @@ export class GitHubProvider extends BaseProvider {
     logger.debug(`Finished processing ${items.length} items from GitHub poll`);
   }
 
+  /**
+   * Fetches a fresh GitHub App installation token via wsenv git-credentials get.
+   * Mirrors the Lua auth.inject_github_token() logic in config/nginx.conf.
+   */
+  private static fetchInstallationToken(org: string): string | undefined {
+    const result = spawnSync('/opt/sandboxd/sbin/wsenv', ['git-credentials', 'get'], {
+      input: `protocol=https\nhost=github.com\npath=${org}/coworker-bot\n`,
+      encoding: 'utf8',
+    });
+    if (result.error || result.status !== 0) {
+      logger.warn(
+        `GitHub: wsenv git-credentials get failed: ${result.stderr || result.error?.message}`
+      );
+      return undefined;
+    }
+    for (const line of (result.stdout as string).split('\n')) {
+      const match = line.match(/^password=(.+)/);
+      if (match) return match[1]!.trim();
+    }
+    logger.warn('GitHub: wsenv git-credentials get returned no password field');
+    return undefined;
+  }
+
+  /**
+   * Refreshes the installation token if it has expired (TTL: 55 minutes).
+   * Called lazily on every API request via the tokenGetter closure in GitHubComments.
+   */
+  private refreshTokenIfNeeded(): void {
+    if (this.token && Date.now() < this.tokenExpiry) return;
+    const org = process.env.GITHUB_ORG;
+    if (!org) return;
+    const newToken = GitHubProvider.fetchInstallationToken(org);
+    if (newToken) {
+      this.token = newToken;
+      this.tokenExpiry = Date.now() + GitHubProvider.TOKEN_TTL_MS;
+      logger.debug('GitHub: installation token refreshed');
+    } else {
+      logger.warn('GitHub: failed to refresh installation token');
+    }
+  }
+
   async shutdown(): Promise<void> {
     await super.shutdown();
     this.webhook = undefined;
     this.poller = undefined;
     this.comments = undefined;
     this.token = undefined;
+    this.tokenExpiry = 0;
   }
 }

@@ -12,29 +12,28 @@ To add a secret:
 2. Navigate to **Settings → Secrets**
 3. Click **Add Secret**, enter the name and value, and save
 
-The secret name must exactly match what is referenced in the template (e.g., `github-pat`, not `github_pat`).
+The secret name must exactly match what is referenced in the template (e.g., `github-webhook-secret`, not `github_webhook_secret`).
 
 ---
 
 ## Secrets Reference
 
-### `github-pat`
+### GitHub App Installation
 
-**Used as:** `GITHUB_PERSONAL_ACCESS_TOKEN`
+GitHub authentication uses the **GitHub App installation token** — no personal access token secret is needed.
 
-A GitHub Personal Access Token (classic) used to authenticate the GitHub MCP server and webhook handler.
+**How to connect:**
 
-**How to create:**
+1. Open the Crafting Web Console → **Connect → GitHub**
+2. Connect your GitHub App and grant it access to the org repos you want the agent to use
+3. The installation token is automatically injected by the mcp-proxy container into every GitHub MCP request
 
-1. Go to [github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)](https://github.com/settings/tokens)
-2. Click **Generate new token (classic)**
-3. Set an expiration and select the following scopes:
-   - `repo` (full repository access)
-   - `read:org` (if working with org repositories)
-4. Click **Generate token** and copy the value immediately
-5. Add it to Crafting Sandbox as secret name `github-pat`
+**Required env var:** `GITHUB_ORG` — the name of the org where the GitHub App is installed.
 
-> Note: Some templates use `github_pat` (underscore). Make sure the secret name in Crafting Sandbox matches what is referenced in the template you are using.
+**Required repository permissions on the GitHub App:**
+- Contents: Read and write
+- Issues: Read and write
+- Pull requests: Read and write
 
 ---
 

@@ -10,13 +10,13 @@ Set env vars in the sandbox template's `env:` block. The watcher reads them at s
 
 ### GitHub
 
-| Variable                       | Required             | Description                                                                                     |
-| ------------------------------ | -------------------- | ----------------------------------------------------------------------------------------------- |
-| `GITHUB_PERSONAL_ACCESS_TOKEN` | Yes — enables GitHub | Fine-grained PAT for the bot account                                                            |
-| `GITHUB_BOT_USERNAME`          | Recommended          | Bot account username used for deduplication; events where the bot's comment is last are skipped |
-| `GITHUB_REPOSITORIES`          | Polling only         | Comma-separated repos to poll: `owner/repo1,owner/repo2`                                        |
-| `GITHUB_WEBHOOK_SECRET`        | Recommended          | Shared secret used to verify webhook signatures                                                 |
-| `GITHUB_POLLING_INTERVAL`      | Optional             | Polling interval in seconds (default: `60`)                                                     |
+| Variable                  | Required             | Description                                                                                                          |
+| ------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_ORG`              | Yes — enables GitHub | Org where the GitHub App is installed; the installation token is injected automatically by the mcp-proxy                                        |
+| `GITHUB_BOT_USERNAME`     | Optional             | Bot username for deduplication; events where the bot's comment is last are skipped. Defaults to `coworker-bot`. Set to the GitHub App bot username (e.g. `my-app[bot]`) or any arbitrary name. |
+| `GITHUB_REPOSITORIES`     | Polling only         | Comma-separated repos to poll: `owner/repo1,owner/repo2`; auto-detected from the installation token if not set                                 |
+| `GITHUB_WEBHOOK_SECRET`   | Recommended          | Shared secret used to verify webhook signatures                                                                      |
+| `GITHUB_POLLING_INTERVAL` | Optional             | Polling interval in seconds (default: `60`)                                                                          |
 
 ### Linear
 
@@ -84,12 +84,9 @@ providers:
   github:
     enabled: true
     pollingInterval: 60
-    auth:
-      type: token
-      tokenEnv: GITHUB_PERSONAL_ACCESS_TOKEN
     options:
       webhookSecretEnv: GITHUB_WEBHOOK_SECRET
-      botUsername: my-bot
+      botUsername: coworker-bot # GitHub App bot username
       repositories:
         - owner/repo1
       eventFilter:
@@ -168,8 +165,8 @@ Inside `watcher.yaml`, you can reference environment variables using `${VAR_NAME
 ```yaml
 providers:
   github:
-    auth:
-      token: ${GITHUB_PERSONAL_ACCESS_TOKEN}
+    options:
+      botUsername: ${GITHUB_BOT_USERNAME}
 ```
 
 If the variable is not set, the placeholder is left as-is and a warning is logged. In practice, use `tokenEnv`/`webhookSecretEnv` instead of `token`/`webhookSecret` — the `*Env` fields defer resolution until the value is actually needed and produce clearer error messages when a variable is missing.
