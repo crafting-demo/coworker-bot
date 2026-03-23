@@ -70,7 +70,7 @@ env:
   # Create: echo "YOUR_TOKEN" | cs secret create github-pat --shared -f -
   # RECOMMENDED: mark as "Admin Only" + "Not Mountable" in the Web Console.
   # ---------------------------------------------------------------------------
-  - GITHUB_PERSONAL_ACCESS_TOKEN=${secret:github-pat}
+  - GITHUB_ORG=org
 
 endpoints:
   # ---------------------------------------------------------------------------
@@ -105,7 +105,7 @@ endpoints:
     http:
       routes:
         - backend:
-            target: mcp-proxy
+            target: dev
             port: github
           path_prefix: /
       auth_proxy:
@@ -122,7 +122,7 @@ endpoints:
     http:
       routes:
         - backend:
-            target: mcp-proxy
+            target: dev
             port: jira
           path_prefix: /
       auth_proxy:
@@ -136,23 +136,25 @@ workspaces:
       - name: webhook
         port: 3000
         protocol: HTTP/TCP
+      - name: github
+        port: 8082
+        protocol: HTTP/TCP
+      - name: jira
+        port: 8083
+        protocol: HTTP/TCP
 
     checkouts:
       # The coworker-bot repo is checked out here on sandbox creation.
       # The watcher daemon (below) runs from this directory.
       - path: coworker-bot
         repo:
-          git: git@github.com:crafting-demo/coworker-bot.git
+          github:
+            org: org
+            repo: coworker-bot
         manifest:
           overlays:
-            - inline:
-                hooks:
-                  post-checkout:
-                    cmd: pnpm install
-                daemons:
-                  watcher:
-                    run:
-                      cmd: pnpm start
+            - file: .sandbox/setup.yaml
+            - file: .sandbox/proxy-jira.yaml
 
     # -------------------------------------------------------------------------
     # watcher.yaml — injected on every sandbox start (overwrite: true).
@@ -219,59 +221,6 @@ containers:
       - name: github
         port: 8082
         protocol: HTTP/TCP
-
-  # ---------------------------------------------------------------------------
-  # nginx reverse proxy — injects auth tokens for both the GitHub MCP server
-  # and the Jira MCP server before forwarding requests.
-  #
-  # Why this container exists: MCP servers expect an Authorization: Bearer <token>
-  # header on every request. Rather than embedding credentials in each MCP
-  # server container, they are injected here at the proxy layer.
-  #
-  # The nginx config template uses envsubst (built into nginx:alpine) to
-  # substitute $GITHUB_PERSONAL_ACCESS_TOKEN and $JIRA_API_TOKEN at startup.
-  # ---------------------------------------------------------------------------
-  - name: mcp-proxy
-    image: nginx:alpine
-    env:
-      - GITHUB_PERSONAL_ACCESS_TOKEN=${secret:github-pat}
-      - JIRA_API_TOKEN=${secret:jira-api-token}
-    ports:
-      - name: github
-        port: 8082
-        protocol: HTTP/TCP
-      - name: jira
-        port: 8083
-        protocol: HTTP/TCP
-    volume_mounts:
-      - name: inline-volume
-        path: /etc/nginx/templates/default.conf.template
-        from:
-          volume:
-            name: inline-volume
-            content:
-              text: |
-                server {
-                  listen 8082;
-                  location /mcp {
-                    proxy_set_header Authorization "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}";
-                    proxy_set_header Host github-mcp;
-                    proxy_pass http://github-mcp:8082/mcp;
-                    proxy_http_version 1.1;
-                    proxy_buffering off;
-                  }
-                }
-                server {
-                  listen 8083;
-                  location /mcp {
-                    proxy_set_header Authorization "Bearer ${JIRA_API_TOKEN}";
-                    proxy_set_header Host mcp.atlassian.com;
-                    proxy_pass https://mcp.atlassian.com/v1/mcp;
-                    proxy_http_version 1.1;
-                    proxy_buffering off;
-                    proxy_ssl_server_name on;
-                  }
-                }
 
 # =============================================================================
 # MCP server registrations — makes GitHub and Jira tools available to all

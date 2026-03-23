@@ -1,0 +1,20 @@
+hooks:
+  post-checkout:
+    cmd: |
+      set -ex
+      command -v nginx >/dev/null || {
+        sudo apt-get update
+        sudo apt-get install -y nginx libnginx-mod-http-lua
+      }
+      command -v npm >/dev/null || {
+        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+        sudo apt-get install -y nodejs
+      }
+      command -v pnpm >/dev/null || {
+        sudo npm install -g pnpm
+      }
+      pnpm install
+daemons:
+  watcher:
+    run:
+      cmd: pnpm start
