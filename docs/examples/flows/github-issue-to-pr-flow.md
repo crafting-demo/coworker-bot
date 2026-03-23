@@ -188,7 +188,7 @@ The PR is ready for your review. The Crafting Sandbox Coding Agent has done all 
 **You comment on the issue:**
 
 ```
-@coworker-bot-bot Can you also add keyboard shortcut Ctrl+D to toggle dark mode?
+@coworker-bot Can you also add keyboard shortcut Ctrl+D to toggle dark mode?
 ```
 
 **The Crafting Sandbox Coding Agent:**
