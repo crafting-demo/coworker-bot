@@ -12,7 +12,8 @@
 #   1. Create secrets (see templates/README.md for token generation):
 #        echo "YOUR_JIRA_TOKEN"  | cs secret create jira-api-token --shared -f -
 #        echo "$(openssl rand -hex 32)" | cs secret create jira-webhook-secret --shared -f -
-#   2. Connect github app: in Web Console → Connect → Github, connect to your github app and org repos.
+#   2. Ask Crafting for the "GitHub App in Self-Hosting" guide and complete it first.
+#      Then in Web Console → Connect → Github, connect to your github app and org repos.
 #   3. Fill in the required env vars below: JIRA_BASE_URL, JIRA_EMAIL, and GITHUB_ORG
 #   4. In the watcher.yaml content (below), replace the two placeholder values:
 #        botUsername  — Jira display name of the bot account

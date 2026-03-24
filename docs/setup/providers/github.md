@@ -46,6 +46,8 @@ providers:
 
 Connect your GitHub App to the Crafting org so the sandbox can authenticate with GitHub.
 
+> **Note:** GitHub App integration requires self-hosting setup. Ask Crafting for the **"GitHub App in Self-Hosting"** guide before proceeding.
+
 In the **Crafting Web Console → Connect → GitHub**: connect to your GitHub App and the org repos you want the agent to access.
 
 After connecting:

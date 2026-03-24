@@ -29,9 +29,9 @@ Create a new GitHub App in your GitHub organization (**Settings → Developer se
 | Callback URL | `https://<name>.sandboxes.site/integration/github/callback` |
 | Webhook URL  | `https://<name>.sandboxes.site/integration/github/events`   |
 
-### 1b. Contact Crafting support to enable GitHub
+### 1b. Get the self-hosting guide from Crafting
 
-The GitHub App feature must be enabled for your sandbox system before you can use it. Contact the Crafting support team to enable it.
+GitHub App integration requires self-hosting setup. Ask Crafting for the **"GitHub App in Self-Hosting"** guide and complete it before proceeding.
 
 ### 1c. Connect the GitHub App in Crafting
 

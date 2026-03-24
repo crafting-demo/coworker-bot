@@ -2,7 +2,8 @@
 # coworker-bot — GitHub Issue/PR → AI Agent → GitHub PR
 #
 # QUICK START (5 steps before creating this template):
-#   1. Connect github app: in Web Console → Connect → Github, connect to your github app and org repos.
+#   1. Ask Crafting for the "GitHub App in Self-Hosting" guide and complete it first.
+#      Then in Web Console → Connect → Github, connect to your github app and org repos.
 #   2. Create secrets:     see docs/setup/github.md
 #   3. Fill in env vars:   edit GITHUB_ORG and GITHUB_BOT_USERNAME below
 #   4. Create template:    cs template create coworker-bot ./docs/examples/templates/coworker-bot-quick-start.yaml

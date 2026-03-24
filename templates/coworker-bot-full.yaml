@@ -6,7 +6,8 @@
 # documented as a starting point.
 #
 # SETUP STEPS before creating this template:
-#   1. In Web Console → Connect → Github, connect to your github app and org repos.
+#   1. Ask Crafting for the "GitHub App in Self-Hosting" guide and complete it first.
+#      Then in Web Console → Connect → Github, connect to your github app and org repos.
 #   2. Create secrets for each provider you want:  see docs/setup/README.md
 #   3. Fill in required env vars below (GITHUB_BOT_USERNAME, REPOSITORIES, TEAMS)
 #   4. Delete the env vars, endpoints, containers, and customizations for any
