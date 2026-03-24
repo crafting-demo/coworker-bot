@@ -7,37 +7,15 @@ Get coworker-bot running with GitHub in ~10 minutes.
 - [Node.js](https://nodejs.org/) v20+ (LTS recommended)
 - [pnpm](https://pnpm.io/installation) — install via `npm install -g pnpm` or the [standalone installer](https://pnpm.io/installation)
 - Crafting CLI (`cs`) installed and authenticated as an org admin
+- GitHub App integration enabled for your Crafting org (see Step 1 below)
 
 ---
 
-## 1. Create and connect a GitHub App
+## 1. Complete the GitHub App setup
 
-### 1a. Create a GitHub App
+GitHub App integration requires self-hosting setup covered in a separate guide. Ask Crafting for the **"GitHub App in Self-Hosting"** guide and complete it before continuing here.
 
-Create a new GitHub App in your GitHub organization (**Settings → Developer settings → GitHub Apps → New GitHub App**) and configure:
-
-**Permissions (Repository):**
-
-- Contents: Read and write
-- Issues: Read and write
-- Pull requests: Read and write
-
-**URLs** (replace `<name>` with your Crafting sandbox system hostname):
-
-| Field        | Value                                                       |
-| ------------ | ----------------------------------------------------------- |
-| Callback URL | `https://<name>.sandboxes.site/integration/github/callback` |
-| Webhook URL  | `https://<name>.sandboxes.site/integration/github/events`   |
-
-### 1b. Get the self-hosting guide from Crafting
-
-GitHub App integration requires self-hosting setup. Ask Crafting for the **"GitHub App in Self-Hosting"** guide and complete it before proceeding.
-
-### 1c. Connect the GitHub App in Crafting
-
-In the **Crafting Web Console → Connect → GitHub**: connect to your GitHub App and the org repos you want the agent to access.
-
-Note two values you will need below:
+Once done, you will have:
 
 - The **org name** where the app is installed → `GITHUB_ORG`
 - The **bot username** of the GitHub App → `GITHUB_BOT_USERNAME`. GitHub automatically appends `[bot]` to every App's login, so if your app is named `my-app`, the bot username is `my-app[bot]`.
