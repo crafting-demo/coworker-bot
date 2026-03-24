@@ -1,9 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 import { JiraWebhook } from '../src/watcher/providers/jira/JiraWebhook.js';
 
-// Jira system webhooks do not use HMAC signing; we validate an optional
-// shared secret passed in the X-Jira-Webhook-Token header.
+// Jira Cloud signs webhook payloads with HMAC-SHA256 in the X-Hub-Signature header:
+//   X-Hub-Signature: sha256=<hex>
+
+function sign(secret: string, body: string): string {
+  return 'sha256=' + createHmac('sha256', secret).update(body, 'utf8').digest('hex');
+}
 
 function baseHeaders(): Record<string, string> {
   return { 'x-atlassian-token': 'no-check' };
@@ -24,47 +29,58 @@ test('JiraWebhook.validate - valid when no secret and no headers', () => {
   assert.equal(result.valid, true);
 });
 
-test('JiraWebhook.validate - valid with correct token header', () => {
-  const webhook = new JiraWebhook('my-secret-token');
-  const headers = { ...baseHeaders(), 'x-jira-webhook-token': 'my-secret-token' };
-  const result = webhook.validate(headers, '{}');
+test('JiraWebhook.validate - valid with correct HMAC signature', () => {
+  const secret = 'my-secret';
+  const body = '{"webhookEvent":"jira:issue_created"}';
+  const webhook = new JiraWebhook(secret);
+  const headers = { ...baseHeaders(), 'x-hub-signature': sign(secret, body) };
+  const result = webhook.validate(headers, body);
   assert.equal(result.valid, true);
 });
 
-test('JiraWebhook.validate - invalid when secret configured but token header is missing', () => {
-  const webhook = new JiraWebhook('my-secret-token');
+test('JiraWebhook.validate - invalid when secret configured but X-Hub-Signature header is missing', () => {
+  const webhook = new JiraWebhook('my-secret');
   const result = webhook.validate(baseHeaders(), '{}');
   assert.equal(result.valid, false);
-  assert.ok(result.error?.toLowerCase().includes('x-jira-webhook-token'));
+  assert.ok(result.error?.toLowerCase().includes('x-hub-signature'));
 });
 
-test('JiraWebhook.validate - invalid when token does not match secret', () => {
-  const webhook = new JiraWebhook('correct-token');
-  const headers = { ...baseHeaders(), 'x-jira-webhook-token': 'wrong-token' };
+test('JiraWebhook.validate - invalid when signature does not match', () => {
+  const webhook = new JiraWebhook('correct-secret');
+  const headers = { ...baseHeaders(), 'x-hub-signature': sign('wrong-secret', '{}') };
   const result = webhook.validate(headers, '{}');
   assert.equal(result.valid, false);
-  assert.ok(result.error?.toLowerCase().includes('token'));
+  assert.ok(
+    result.error?.toLowerCase().includes('signature') ||
+      result.error?.toLowerCase().includes('mismatch')
+  );
 });
 
-test('JiraWebhook.validate - token comparison is case-sensitive', () => {
-  const webhook = new JiraWebhook('MySecret');
-  const headers = { ...baseHeaders(), 'x-jira-webhook-token': 'mysecret' };
+test('JiraWebhook.validate - invalid when X-Hub-Signature header is malformed (no = sign)', () => {
+  const webhook = new JiraWebhook('secret');
+  const headers = { ...baseHeaders(), 'x-hub-signature': 'invalidsignature' };
   const result = webhook.validate(headers, '{}');
   assert.equal(result.valid, false);
 });
 
-test('JiraWebhook.validate - accepts array-valued token header (uses first value)', () => {
-  const webhook = new JiraWebhook('tok');
-  const result = webhook.validate({ 'x-jira-webhook-token': ['tok', 'other'] }, 'body');
+test('JiraWebhook.validate - accepts array-valued X-Hub-Signature header (uses first value)', () => {
+  const secret = 'tok';
+  const body = 'body';
+  const sig = sign(secret, body);
+  const webhook = new JiraWebhook(secret);
+  const result = webhook.validate({ 'x-hub-signature': [sig, 'other'] }, body);
   assert.equal(result.valid, true);
 });
 
-test('JiraWebhook.validate - rawBody parameter is ignored (Jira does not use HMAC)', () => {
-  const webhook = new JiraWebhook('tok');
-  // Same token, different bodies — both should behave the same
-  const headers = { 'x-jira-webhook-token': 'tok' };
+test('JiraWebhook.validate - signature depends on rawBody (different body = invalid)', () => {
+  const secret = 'tok';
+  const body = 'body-a';
+  const webhook = new JiraWebhook(secret);
+  const headers = { 'x-hub-signature': sign(secret, body) };
+  // Correct body passes
   assert.equal(webhook.validate(headers, 'body-a').valid, true);
-  assert.equal(webhook.validate(headers, 'body-b').valid, true);
+  // Different body fails
+  assert.equal(webhook.validate(headers, 'body-b').valid, false);
 });
 
 // --- extractMetadata() ---
