@@ -296,7 +296,13 @@ export class Watcher extends WatcherEventEmitter {
       }
 
       // Check if provider has necessary configuration for polling
-      const hasAuth = config.auth !== undefined;
+      const hasAuth =
+        config.auth !== undefined ||
+        (name === 'github' && !!process.env.GITHUB_ORG) ||
+        (name === 'slack' && !!process.env.SLACK_BOT_TOKEN) ||
+        (name === 'linear' && !!process.env.LINEAR_API_TOKEN) ||
+        (name === 'jira' && !!process.env.JIRA_API_TOKEN) ||
+        (name === 'gitlab' && !!process.env.GITLAB_TOKEN);
       if (!hasAuth) {
         logger.debug(`Skipping poller for ${name}: no auth configured`);
         continue;
@@ -315,6 +321,7 @@ export class Watcher extends WatcherEventEmitter {
         (options?.repositories && options.repositories.length > 0) || // GitHub/GitLab
         (options?.projects && options.projects.length > 0) || // GitLab/Jira
         (options?.teams && options.teams.length > 0) || // Linear
+        (name === 'github' && !!process.env.GITHUB_ORG) || // GitHub App: repos auto-detected
         (name === 'linear' && hasAuth) || // Linear can poll all teams
         (name === 'jira' && hasAuth); // Jira can poll all accessible projects
 

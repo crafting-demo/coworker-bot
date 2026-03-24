@@ -63,7 +63,7 @@ Open the template and fill in the required values in the `env:` block. At minimu
 
 ```yaml
 env:
-  - GITHUB_ORG=your-github-app-installed-org  # org where the GitHub App is installed
+  - GITHUB_ORG=your-github-app-installed-org # org where the GitHub App is installed
   - GITHUB_WEBHOOK_SECRET=${secret:github-webhook-secret}
 
   # Required for deduplication — set to the GitHub App's bot username (e.g. my-app[bot]).

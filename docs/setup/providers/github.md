@@ -28,9 +28,9 @@ Uses a Personal Access Token belonging to a dedicated GitHub bot user account.
 providers:
   github:
     auth:
-      tokenEnv: GITHUB_TOKEN  # env var holding the PAT
+      tokenEnv: GITHUB_TOKEN # env var holding the PAT
     options:
-      botUsername: my-bot  # optional — auto-detected if omitted
+      botUsername: my-bot # optional — auto-detected if omitted
 ```
 
 ---

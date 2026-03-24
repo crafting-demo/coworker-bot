@@ -315,6 +315,13 @@ export class GitHubProvider extends BaseProvider {
       return false;
     }
     if (resource.comment) {
+      // Skip comments authored by the bot itself (e.g. deduplication comments it posted)
+      if (
+        this.botUsernames.some((n) => n.toLowerCase() === resource.comment!.author.toLowerCase())
+      ) {
+        logger.debug(`Skipping ${type} #${resource.number} comment - authored by bot`);
+        return false;
+      }
       if (!isBotMentionedInText(resource.comment.body, this.botUsernames)) {
         logger.debug(`Skipping ${type} #${resource.number} comment - bot not mentioned`);
         return false;

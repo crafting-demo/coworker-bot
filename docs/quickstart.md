@@ -17,16 +17,17 @@ Get coworker-bot running with GitHub in ~10 minutes.
 Create a new GitHub App in your GitHub organization (**Settings → Developer settings → GitHub Apps → New GitHub App**) and configure:
 
 **Permissions (Repository):**
+
 - Contents: Read and write
 - Issues: Read and write
 - Pull requests: Read and write
 
 **URLs** (replace `<name>` with your Crafting sandbox system hostname):
 
-| Field        | Value                                                              |
-| ------------ | ------------------------------------------------------------------ |
-| Callback URL | `https://<name>.sandboxes.site/integration/github/callback`       |
-| Webhook URL  | `https://<name>.sandboxes.site/integration/github/events`         |
+| Field        | Value                                                       |
+| ------------ | ----------------------------------------------------------- |
+| Callback URL | `https://<name>.sandboxes.site/integration/github/callback` |
+| Webhook URL  | `https://<name>.sandboxes.site/integration/github/events`   |
 
 ### 1b. Contact Crafting support to enable GitHub
 
@@ -37,6 +38,7 @@ The GitHub App feature must be enabled for your sandbox system before you can us
 In the **Crafting Web Console → Connect → GitHub**: connect to your GitHub App and the org repos you want the agent to access.
 
 Note two values you will need below:
+
 - The **org name** where the app is installed → `GITHUB_ORG`
 - The **bot username** of the GitHub App (e.g. `my-app[bot]`) → `GITHUB_BOT_USERNAME`
 
@@ -65,6 +67,7 @@ curl -o _local/coworker-bot-quick-start.yaml \
 ```
 
 Open `_local/coworker-bot-quick-start.yaml` and set:
+
 - `GITHUB_ORG` — the org name from Step 1
 - `GITHUB_BOT_USERNAME` — **required for deduplication**; the GitHub App's bot username (e.g. `my-app[bot]`). GitHub App installation tokens cannot auto-detect this — it must be set explicitly. You can find the exact value by checking a comment already posted by the app in GitHub.
 

@@ -11,15 +11,25 @@ function escapeRegex(str: string): string {
  * Word-boundary detection is applied so that @alice does not match @alice-bot
  * (and vice versa), including usernames that contain hyphens.
  * The match is case-insensitive.
+ *
+ * For GitHub App bot usernames ending in "[bot]" (e.g. "my-app[bot]"), also
+ * matches the bare name without the suffix (e.g. "@my-app"), since users
+ * commonly omit "[bot]" when mentioning.
  */
 export function isBotMentionedInText(text: string, botUsernames: string[]): boolean {
   if (!text || botUsernames.length === 0) return false;
   return botUsernames.some((username) => {
-    const pattern = new RegExp(
-      '(?<![a-zA-Z0-9_-])@' + escapeRegex(username) + '(?![a-zA-Z0-9_-])',
-      'i'
-    );
-    return pattern.test(text);
+    const namesToMatch = [username];
+    if (username.toLowerCase().endsWith('[bot]')) {
+      namesToMatch.push(username.slice(0, -5)); // strip "[bot]" suffix
+    }
+    return namesToMatch.some((name) => {
+      const pattern = new RegExp(
+        '(?<![a-zA-Z0-9_-])@' + escapeRegex(name) + '(?![a-zA-Z0-9_-])',
+        'i'
+      );
+      return pattern.test(text);
+    });
   });
 }
 
