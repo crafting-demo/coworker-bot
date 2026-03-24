@@ -51,41 +51,58 @@ export class JiraComments {
   ) {}
 
   async getComments(issueKey: string): Promise<JiraCommentItem[]> {
-    const url = `${this.baseUrl}/rest/api/3/issue/${issueKey}/comment?orderBy=created`;
-
     logger.debug('Fetching comments from Jira', { issueKey });
 
-    const startTime = Date.now();
-    const response = await fetchWithTimeout(url, {
-      method: 'GET',
-      headers: {
-        Authorization: this.authHeader,
-        Accept: 'application/json',
-      },
-    });
-    const duration = Date.now() - startTime;
+    const allComments: JiraCommentItem[] = [];
+    const pageSize = 100;
+    let startAt = 0;
 
-    logger.debug(`Jira API response received`, {
-      operation: 'getComments',
-      status: response.status,
-      duration: `${duration}ms`,
-    });
+    for (;;) {
+      const url = `${this.baseUrl}/rest/api/3/issue/${issueKey}/comment?orderBy=created&maxResults=${pageSize}&startAt=${startAt}`;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error(
-        `Failed to fetch comments from Jira: ${response.status} ${response.statusText} - ${errorText}`
-      );
-      throw new Error(`Failed to fetch comments: ${response.status} ${response.statusText}`);
+      const startTime = Date.now();
+      const response = await fetchWithTimeout(url, {
+        method: 'GET',
+        headers: {
+          Authorization: this.authHeader,
+          Accept: 'application/json',
+        },
+      });
+      const duration = Date.now() - startTime;
+
+      logger.debug(`Jira API response received`, {
+        operation: 'getComments',
+        status: response.status,
+        duration: `${duration}ms`,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(
+          `Failed to fetch comments from Jira: ${response.status} ${response.statusText} - ${errorText}`
+        );
+        throw new Error(`Failed to fetch comments: ${response.status} ${response.statusText}`);
+      }
+
+      // Jira REST API v3 GET /issue/{key}/comment returns { comments: [...], startAt, maxResults, total }
+      const result = (await response.json()) as {
+        comments?: JiraCommentItem[];
+        total?: number;
+      };
+      const page = result.comments ?? [];
+      allComments.push(...page);
+
+      const total = result.total ?? allComments.length;
+      if (allComments.length >= total || page.length < pageSize) {
+        break;
+      }
+
+      startAt += page.length;
     }
 
-    // Jira REST API v3 GET /issue/{key}/comment returns { comments: [...], startAt, maxResults, total }
-    const result = (await response.json()) as { comments?: JiraCommentItem[] };
-    const comments = result.comments ?? [];
+    logger.debug(`Fetched ${allComments.length} comments from Jira issue ${issueKey}`);
 
-    logger.debug(`Fetched ${comments.length} comments from Jira issue ${issueKey}`);
-
-    return comments;
+    return allComments;
   }
 
   async postComment(issueKey: string, body: string): Promise<string> {
