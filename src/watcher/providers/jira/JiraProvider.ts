@@ -221,6 +221,17 @@ export class JiraProvider extends BaseProvider {
         return;
       }
 
+      // Skip comments authored by the bot itself (mirrors GitHub's shouldProcessEvent check)
+      const commentAuthorId = payload.comment.author.accountId;
+      const commentAuthorName = payload.comment.author.displayName;
+      if (
+        this.botAccountIds.includes(commentAuthorId) ||
+        this.botUsernames.some((n) => n.toLowerCase() === commentAuthorName.toLowerCase())
+      ) {
+        logger.debug(`Skipping Jira comment on ${payload.issue.key} - authored by bot`);
+        return;
+      }
+
       const commentText = extractTextFromADF(payload.comment.body);
       if (
         !isBotMentionedInText(commentText, this.botUsernames) &&
