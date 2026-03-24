@@ -100,24 +100,12 @@ providers:
     # Webhook mode is always enabled for receiving events from GitHub
     # (Implement your own security/authentication at the reverse proxy or API gateway level)
 
-    # Polling configuration (optional - enables polling mode if auth + repositories are provided)
+    # Polling configuration (optional - enables polling mode if repositories are provided)
     pollingInterval: 60  # Polling interval in seconds
 
-    # Authentication (required for polling mode and comment-based deduplication)
-    auth:
-      type: token
-
-      # Option 1: Direct token (not recommended for production)
-      # token: ghp_your_token_here
-
-      # Option 2: From environment variable (recommended)
-      tokenEnv: GITHUB_PERSONAL_ACCESS_TOKEN
-
-      # Option 3: From file
-      # tokenFile: /path/to/token.txt
-
-      # Option 4: Interpolate from environment in YAML
-      # token: ${GITHUB_TOKEN}
+    # Authentication is handled externally by the nginx mcp-proxy, which injects the
+    # GitHub App installation token (fetched using GITHUB_ORG) as a Bearer header on
+    # every request to the github-mcp container. No auth block is needed here.
 
     # GitHub-specific options
     options:
@@ -129,15 +117,16 @@ providers:
       webhookSecretEnv: GITHUB_WEBHOOK_SECRET
       # webhookSecretFile: /path/to/secret/file
 
-      # Bot username(s) for deduplication (required)
-      # Activity from these users will be skipped to prevent duplicate work
-      # If the last comment on an issue/PR is by any of these users, the event is skipped
-      # Can be a single string or array of GitHub usernames
-      botUsername: coworker-bot-bot
-      # Multiple usernames (if you have multiple bot accounts):
+      # Bot username(s) for deduplication (optional, default: "coworker-bot")
+      # Activity from these users will be skipped to prevent duplicate work.
+      # If the last comment on an issue/PR is by any of these users, the event is skipped.
+      # Set to the GitHub App bot username (e.g. "my-app[bot]") or any arbitrary name.
+      # Corresponds to env var: GITHUB_BOT_USERNAME
+      botUsername: coworker-bot
+      # Multiple usernames:
       # botUsername:
-      #   - "coworker-bot-bot"
-      #   - "backup-bot"
+      #   - "coworker-bot"
+      #   - "another-app[bot]"
 
       # Repositories to monitor (required for polling mode)
       repositories:

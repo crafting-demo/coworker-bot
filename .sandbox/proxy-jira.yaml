@@ -1,0 +1,4 @@
+daemons:
+  mcp-proxy:
+    run:
+      cmd: nginx -c ~/coworker-bot/config/nginx-jira.conf -g 'daemon off;'

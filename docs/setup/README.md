@@ -8,7 +8,7 @@ Before starting, make sure you have:
 
 - **Crafting CLI (`cs`)** — installed and authenticated as an org admin (`cs auth login`)
 - **A Crafting org** — with permission to create sandboxes, secrets, and templates
-- **A dedicated bot account** — a separate account for each provider you use (GitHub user, Linear user, Slack bot app); must not be your personal account
+- **A dedicated bot account** — a separate account for each provider you use (Linear user, Slack bot app); GitHub uses a GitHub App installation — no separate GitHub user account is needed
 - **Provider credentials** — API tokens and webhook secrets for each provider you want to enable (collected in Part 1 below)
 
 ---
@@ -19,7 +19,7 @@ Each provider requires its own credentials and, in some cases, an MCP server for
 
 | Provider                      | Credentials needed                                    | MCP available                                  |
 | ----------------------------- | ----------------------------------------------------- | ---------------------------------------------- |
-| [GitHub](providers/github.md) | Fine-grained PAT + webhook secret                     | GitHub MCP server (container, auto-configured) |
+| [GitHub](providers/github.md) | GitHub App installation + webhook secret              | GitHub MCP server (container, auto-configured) |
 | [Linear](providers/linear.md) | API key + webhook secret                              | Remote MCP at `https://mcp.linear.app/mcp`     |
 | [Slack](providers/slack.md)   | Bot token + signing secret                            | Slack MCP server (container, auto-configured)  |
 | [Jira](providers/jira.md)     | API token (Cloud) or PAT (Server/DC) + webhook secret | Community MCP server (manual setup)            |
@@ -37,9 +37,10 @@ Create a Crafting secret for each credential you collected in the provider guide
 Example for GitHub (run in a separate terminal — never paste tokens into this chat):
 
 ```bash
-echo "YOUR_TOKEN" | cs secret create github-pat --shared -f -
-echo "YOUR_WEBHOOK_SECRET" | cs secret create github-webhook-secret --shared -f -
+echo "$(openssl rand -hex 32)" | cs secret create github-webhook-secret --shared -f -
 ```
+
+GitHub authentication uses the GitHub App installation token — connect the app first via Web Console → **Connect → GitHub**. No `github-pat` secret is needed.
 
 After creating each secret, open the Crafting Web Console and mark it as **Admin Only** and **Not Mountable**:
 
@@ -62,15 +63,13 @@ Open the template and fill in the required values in the `env:` block. At minimu
 
 ```yaml
 env:
-  - GITHUB_PERSONAL_ACCESS_TOKEN=${secret:github-pat} # already set
-  - GITHUB_WEBHOOK_SECRET=${secret:github-webhook-secret} # already set
+  - GITHUB_ORG=your-github-app-installed-org  # org where the GitHub App is installed
+  - GITHUB_WEBHOOK_SECRET=${secret:github-webhook-secret}
 
-
-  # Optional — both are auto-detected from the PAT if not set:
-  #   GITHUB_BOT_USERNAME    auto-detected via GET /user
-  #   GITHUB_REPOSITORIES    auto-detected via GET /user/repos (fine-grained PATs return only scoped repos)
-  # Uncomment to override:
-  # - GITHUB_BOT_USERNAME=your-bot-github-username
+  # Optional — uncomment to override defaults:
+  #   GITHUB_BOT_USERNAME  defaults to "coworker-bot"; set to the GitHub App bot username (e.g. my-app[bot]) or any arbitrary name
+  #   GITHUB_REPOSITORIES  auto-detected from the installation token if not set
+  # - GITHUB_BOT_USERNAME=coworker-bot
   # - GITHUB_REPOSITORIES=owner/repo1,owner/repo2
 ```
 
@@ -141,7 +140,7 @@ For webhook secrets, also update the secret value in the provider's webhook sett
 
 ### Scope minimization
 
-- **GitHub:** Fine-grained token scoped to specific repositories with Contents + Issues + Pull Requests read/write only. Avoid org-level tokens or classic tokens with full `repo` scope.
+- **GitHub:** GitHub App installation token scoped to the repos the app was granted access to. Grant only the repository permissions the agent needs (Contents, Issues, Pull requests read/write).
 - **Linear:** API keys have full workspace access. Use a dedicated service account when possible.
 - **Slack:** Restrict bot scopes to the minimum listed in [slack.md](providers/slack.md). Only invite the bot to channels it needs to monitor.
 
@@ -187,7 +186,7 @@ For provider-specific troubleshooting, see the relevant provider guide:
 The env vars are not reaching the watcher. Check:
 
 - Secrets exist: `cs secret list`
-- Template references the correct secret names (e.g. `${secret:github-pat}`)
+- Template references the correct secret names (e.g. `${secret:github-webhook-secret}`)
 - Sandbox was created from the updated template: `cs sandbox info coworker-bot`
 
 **Agent sessions fail to use MCP tools**

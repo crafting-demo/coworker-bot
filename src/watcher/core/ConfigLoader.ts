@@ -21,8 +21,8 @@ export class ConfigLoader {
    * Supported env vars:
    *
    * GitHub:
-   *   GITHUB_PERSONAL_ACCESS_TOKEN  — enables GitHub provider
-   *   GITHUB_BOT_USERNAME           — overrides bot username (auto-detected from token if absent)
+   *   GITHUB_ORG                    — enables GitHub provider (org where the GitHub App is installed)
+   *   GITHUB_BOT_USERNAME           — bot username for deduplication (default: "coworker-bot"); can be the GitHub App bot username (e.g. "my-app[bot]") or any arbitrary name
    *   GITHUB_REPOSITORIES           — comma-separated list: owner/repo1,owner/repo2
    *   GITHUB_WEBHOOK_SECRET         — webhook signature verification secret
    *   GITHUB_POLLING_INTERVAL       — polling interval in seconds (default: 60)
@@ -100,8 +100,9 @@ export class ConfigLoader {
   static buildFromEnv(): Partial<WatcherConfig> {
     const result: Partial<WatcherConfig> = { providers: {} };
 
-    // GitHub — auto-enabled when GITHUB_PERSONAL_ACCESS_TOKEN is set
-    if (process.env.GITHUB_PERSONAL_ACCESS_TOKEN) {
+    // GitHub — auto-enabled when GITHUB_ORG is set (authentication via GitHub App installation
+    // token, injected by the nginx mcp-proxy using GITHUB_ORG — no token env var needed here)
+    if (process.env.GITHUB_ORG) {
       const options: Record<string, unknown> = {};
 
       if (process.env.GITHUB_BOT_USERNAME) {
@@ -118,7 +119,6 @@ export class ConfigLoader {
 
       const githubConfig: ProviderConfig = {
         enabled: true,
-        auth: { type: 'token', tokenEnv: 'GITHUB_PERSONAL_ACCESS_TOKEN' },
         options,
       };
       if (process.env.GITHUB_POLLING_INTERVAL) {
@@ -333,7 +333,7 @@ export class ConfigLoader {
   private static validate(config: WatcherConfig): void {
     if (!config.providers || typeof config.providers !== 'object') {
       throw new ConfigError(
-        'No providers configured. Set GITHUB_PERSONAL_ACCESS_TOKEN (or LINEAR_API_TOKEN / ' +
+        'No providers configured. Set GITHUB_ORG (or LINEAR_API_TOKEN / ' +
           'SLACK_BOT_TOKEN) to configure a provider, or create config/watcher.yaml.'
       );
     }
@@ -341,7 +341,7 @@ export class ConfigLoader {
     const enabledProviders = Object.entries(config.providers).filter(([, c]) => c.enabled);
     if (enabledProviders.length === 0) {
       throw new ConfigError(
-        'No providers enabled. Set GITHUB_PERSONAL_ACCESS_TOKEN to enable GitHub, ' +
+        'No providers enabled. Set GITHUB_ORG to enable GitHub, ' +
           'LINEAR_API_TOKEN for Linear, or SLACK_BOT_TOKEN for Slack. ' +
           'Alternatively, configure providers in config/watcher.yaml.'
       );

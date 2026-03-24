@@ -10,54 +10,51 @@ Get coworker-bot running with GitHub in ~10 minutes.
 
 ---
 
-## 1. Create a GitHub bot account
+## 1. Create and connect a GitHub App
 
-Create a dedicated GitHub account for the agent (e.g. `my-org-bot`). This is the account that will post comments and open PRs.
+### 1a. Create a GitHub App
 
-> **Do not use your personal account.** The watcher skips events where the last comment is from the bot — using your own account would suppress your own events.
+Create a new GitHub App in your GitHub organization (**Settings → Developer settings → GitHub Apps → New GitHub App**) and configure:
 
-Add the bot as a collaborator on the repositories it needs to access.
+**Permissions (Repository):**
+- Contents: Read and write
+- Issues: Read and write
+- Pull requests: Read and write
+
+**URLs** (replace `<name>` with your Crafting sandbox system hostname):
+
+| Field        | Value                                                              |
+| ------------ | ------------------------------------------------------------------ |
+| Callback URL | `https://<name>.sandboxes.site/integration/github/callback`       |
+| Webhook URL  | `https://<name>.sandboxes.site/integration/github/events`         |
+
+### 1b. Contact Crafting support to enable GitHub
+
+The GitHub App feature must be enabled for your sandbox system before you can use it. Contact the Crafting support team to enable it.
+
+### 1c. Connect the GitHub App in Crafting
+
+In the **Crafting Web Console → Connect → GitHub**: connect to your GitHub App and the org repos you want the agent to access.
+
+Note two values you will need below:
+- The **org name** where the app is installed → `GITHUB_ORG`
+- The **bot username** of the GitHub App (e.g. `coworker-bot`) → `GITHUB_BOT_USERNAME`
 
 ---
 
-## 2. Create a GitHub Personal Access Token
+## 2. Create secrets in Crafting
 
-Sign in as the bot account, then go to **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
+Generate a webhook secret and store it:
 
-Required permissions:
+```bash
+echo "$(openssl rand -hex 32)" | cs secret create github-webhook-secret --shared -f -
+```
 
-- **Contents:** Read and write
-- **Issues:** Read and write
-- **Pull requests:** Read and write
-
-Note the token value — you will use it in the next step.
+After creating the secret, mark it as **Admin Only** and **Not Mountable** in the Web Console (Secrets → select secret → Edit).
 
 ---
 
-## 3. Create secrets in Crafting
-
-```bash
-# Generate a webhook secret
-GITHUB_WEBHOOK_SECRET=$(openssl rand -hex 32)
-```
-
-Create [secrets](https://docs.sandboxes.cloud/concepts/secret.html) for GitHub related information.
-
-- `github-pat`
-- `github-webhook-secret`
-
-Create them using the below commands:
-
-```bash
-echo "YOUR_PAT" | cs secret create github-pat --shared -f -
-echo "$GITHUB_WEBHOOK_SECRET" | cs secret create github-webhook-secret --shared -f -
-```
-
-or using the Web Console.
-
-## After creating each secret, make sure both secrets are marked as **Admin Only** and **Not Mountable**.
-
-## 4. Configure template and start a Sandbox
+## 3. Configure template and start a Sandbox
 
 Download the template into a local folder (gitignored, safe for customizations):
 
@@ -67,7 +64,11 @@ curl -o _local/coworker-bot-quick-start.yaml \
   https://raw.githubusercontent.com/crafting-demo/coworker-bot/refs/heads/master/docs/examples/templates/coworker-bot-quick-start.yaml
 ```
 
-Open `_local/coworker-bot-quick-start.yaml`. The two env vars `GITHUB_BOT_USERNAME` and `GITHUB_REPOSITORIES` are **auto-detected from the PAT** (bot username via `GET /user`, repositories via `GET /user/repos`) and can be left commented out. Uncomment and set them explicitly only if you want to override the auto-detected values.
+Open `_local/coworker-bot-quick-start.yaml` and set:
+- `GITHUB_ORG` — the org name from Step 1
+- `GITHUB_BOT_USERNAME` — optional; the GitHub App's bot username (e.g. `coworker-bot`) or any arbitrary name. Defaults to `coworker-bot`. Used for deduplication: events where the bot's comment is last are skipped.
+
+`GITHUB_REPOSITORIES` is **auto-detected from the installation token** (via `GET /installation/repositories`) and can be left commented out. Uncomment and set it only if you want to override the auto-detected list.
 
 Create the template and sandbox from the local file:
 
@@ -81,7 +82,7 @@ cs sandbox pin coworker-bot
 
 ---
 
-## 5. Configure the GitHub webhook
+## 4. Configure the GitHub webhook
 
 Find your webhook URL: Web Console → Sandbox → Endpoints → "webhook"
 
@@ -91,12 +92,12 @@ In each monitored repository go to **Settings → Webhooks → Add webhook**:
 | ------------ | ------------------------------------------------------------------------ |
 | Payload URL  | `https://webhook--coworker-bot-<your-org>.sandboxes.site/webhook/github` |
 | Content type | `application/json` ← **required**                                        |
-| Secret       | webhook secret from Step 3                                               |
+| Secret       | webhook secret from Step 2                                               |
 | Events       | Issues, Pull requests, Issue comments                                    |
 
 ---
 
-## 6. Authorize MCP servers
+## 5. Authorize MCP servers
 
 Web Console → **Connect → LLM** → under **Sandboxes Authorized to Expose MCP Servers**, click **Add**, input the sandbox name `coworker-bot`, and confirm.
 
@@ -106,7 +107,7 @@ For more details, please refer to this [doc](https://docs.sandboxes.cloud/featur
 
 ---
 
-## 7. Verify
+## 6. Verify
 
 ```bash
 cs logs --workspace coworker-bot/dev --follow watcher

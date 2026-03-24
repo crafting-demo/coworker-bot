@@ -6,47 +6,22 @@ Set up coworker-bot to monitor GitHub issues, PRs, and comments, and automatical
 
 ---
 
-## Step 1 — Create a GitHub Bot Account
+## Step 1 — Connect the GitHub App
 
-Create a dedicated GitHub account for the agent. This account will post comments and open PRs.
+Connect your GitHub App to the Crafting org so the sandbox can authenticate with GitHub.
 
-**MUST:** Use a separate account, not your personal GitHub account. The watcher skips events where the last comment is from this account — using your personal account would suppress events you create yourself.
+In the **Crafting Web Console → Connect → GitHub**: connect to your GitHub App and the org repos you want the agent to access.
 
-After creating the account:
+After connecting:
 
-- Note the **username** → you will use it as `GITHUB_BOT_USERNAME`
-- Add the bot account as a collaborator on the repositories it needs to write to (Settings → Collaborators → Add people)
+- Note the **org name** where the app is installed → `GITHUB_ORG`
+- Optionally set `GITHUB_BOT_USERNAME` to the GitHub App's bot username (e.g. `my-app[bot]`) or any arbitrary name. Defaults to `coworker-bot` if not set. Used for deduplication — events where the last comment is from this name are skipped.
 
----
-
-## Step 2 — Create a GitHub Personal Access Token
-
-Create a fine-grained token for the bot account. Sign in as the bot account to do this.
-
-**External docs:** [GitHub — Managing personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
-
-Steps:
-
-1. Go to **Settings → Developer settings → Personal access tokens → Fine-grained tokens**
-2. Click **Generate new token**
-3. Set:
-   - **Token name:** `coworker-bot` (or your preferred name)
-   - **Expiration:** choose based on your rotation policy
-   - **Resource owner:** the org or user that owns the repositories
-   - **Repository access:** select the specific repositories to monitor
-   - **Repository permissions:**
-     - Contents: **Read and write**
-     - Issues: **Read and write**
-     - Pull requests: **Read and write**
-     - Metadata: Read-only (auto-included)
-
-**MUST:** Use a fine-grained token scoped to specific repositories. DON'T use a classic token with full `repo` scope — it grants far more access than needed.
-
-**Capture:** the token value (shown once) → `github-pat` secret
+The app installation token is automatically injected by the mcp-proxy into every GitHub MCP request — no secret needs to be created manually for authentication.
 
 ---
 
-## Step 3 — Generate a Webhook Secret
+## Step 2 — Generate a Webhook Secret
 
 Generate a random string to use as the webhook signing secret. This allows the watcher to verify that incoming webhook requests actually come from GitHub.
 
@@ -55,6 +30,12 @@ openssl rand -hex 32
 ```
 
 **Capture:** the output value → `github-webhook-secret` secret
+
+```bash
+echo "$(openssl rand -hex 32)" | cs secret create github-webhook-secret --shared -f -
+```
+
+**MUST** mark this secret as **Admin Only** and **Not Mountable** in the Web Console (Secrets → Edit) so it is never written to the filesystem.
 
 ---
 
@@ -65,7 +46,7 @@ The sandbox runs a GitHub MCP server that gives Crafting Coding Agents access to
 How it works:
 
 - A `github-mcp` container runs the GitHub MCP server
-- An nginx `mcp-proxy` container sits in front of it and injects `GITHUB_PERSONAL_ACCESS_TOKEN` as a Bearer token on every request
+- An nginx `mcp-proxy` container sits in front of it and injects the GitHub App installation token as a Bearer token on every request
 - The MCP endpoint is registered so all Crafting Coding Agent sessions inside the sandbox can use GitHub tools
 
 **One-time authorization required:** After creating the sandbox, an org admin must authorize the MCP server. See [Part 2 of the setup guide](../README.md#4-authorize-mcp-servers).
@@ -84,15 +65,12 @@ providers:
     enabled: true
     pollingInterval: 60 # seconds between polls (default: 60)
 
-    auth:
-      type: token
-      tokenEnv: GITHUB_PERSONAL_ACCESS_TOKEN
-
     options:
       webhookSecretEnv: GITHUB_WEBHOOK_SECRET
-      botUsername: your-bot-github-username # from Step 1
+      botUsername: coworker-bot # Optional — GitHub App bot username or any arbitrary name; default: "coworker-bot"
 
-      # Repositories to monitor for polling (webhooks work without this)
+      # Repositories to monitor for polling (webhooks work without this).
+      # Optional — auto-detected from the installation token if not set.
       repositories:
         - owner/repo1
         - owner/repo2
@@ -148,7 +126,7 @@ eventFilter:
 
 ---
 
-## Step 4 — Configure the GitHub Webhook
+## Step 3 — Configure the GitHub Webhook
 
 **External docs:** [GitHub — Creating webhooks](https://docs.github.com/en/webhooks/using-webhooks/creating-webhooks)
 
@@ -165,7 +143,7 @@ For each repository you want to monitor:
 1. Go to the repository → **Settings → Webhooks → Add webhook**
 2. Set **Payload URL** to the URL above
 3. Set **Content type** to `application/json` — **MUST**, not `application/x-www-form-urlencoded`
-4. Set **Secret** to the value you generated in Step 3
+4. Set **Secret** to the value you generated in Step 2
 5. Under **Which events**, select **Let me select individual events**, then check:
    - **Issues**
    - **Pull requests**
@@ -184,7 +162,7 @@ GitHub will send a ping event. The webhook should show a green checkmark in the 
 The env vars are not reaching the watcher. Check:
 
 - Secrets exist: `cs secret list`
-- Template references the correct secret names (`${secret:github-pat}`, `${secret:github-webhook-secret}`)
+- Template references the correct secret names (`${secret:github-webhook-secret}`)
 - Sandbox was created from the updated template: `cs sandbox info coworker-bot`
 
 **Webhook events not received**
@@ -203,7 +181,7 @@ The env vars are not reaching the watcher. Check:
 
 **Bot posts duplicate comments / responds to itself**
 
-`GITHUB_BOT_USERNAME` doesn't match the bot's actual GitHub username. Check the exact username at github.com and update the env var in the template, then re-deploy:
+`GITHUB_BOT_USERNAME` doesn't match the GitHub App's actual bot username. Check the exact username (e.g. `my-app[bot]`) and update the env var in the template, then re-deploy:
 
 ```bash
 cs template update coworker-bot ./_local/coworker-bot-quick-start.yaml
@@ -218,15 +196,8 @@ MCP servers are not authorized. Repeat the authorization step (Web Console → *
 
 Use `eventFilter` in `watcher.yaml` (or injected via the template's `files:` block) to control exactly which event types and actions trigger sessions. See `config/watcher.full.yaml` for the full filter reference.
 
-**Polling not working**
-
-- Verify `GITHUB_PERSONAL_ACCESS_TOKEN` is set correctly
-- Check token permissions (Contents + Issues + PRs read/write)
-- Ensure `repositories` are configured in `options`
-- Check sandbox logs for authentication errors
-
 **Rate limiting (403 with "rate limit exceeded")**
 
 - Increase `pollingInterval` to reduce API calls
 - Use `maxItemsPerPoll` to limit items per poll
-- Authenticated requests have 5,000 requests/hour; rely on webhooks as the primary trigger
+- Rely on webhooks as the primary trigger to reduce polling load

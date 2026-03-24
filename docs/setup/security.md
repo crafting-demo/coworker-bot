@@ -17,7 +17,6 @@ Apply these flags to every secret:
 
 | Secret                  | Provider |
 | ----------------------- | -------- |
-| `github-pat`            | GitHub   |
 | `github-webhook-secret` | GitHub   |
 | `linear-pat`            | Linear   |
 | `linear-webhook-secret` | Linear   |
@@ -60,11 +59,11 @@ Each provider should have a dedicated service account used exclusively by cowork
 - A dedicated account makes audit logs clear: every action taken by the agent is attributed to a clearly named bot account.
 - Revoking access is scoped — you can revoke the bot account's token without affecting your personal access.
 
-| Provider | Guidance                                                                                                |
-| -------- | ------------------------------------------------------------------------------------------------------- |
-| GitHub   | Create a separate GitHub account (e.g. `my-org-bot`). Add it as a collaborator only on monitored repos. |
-| Linear   | Linear API keys are workspace-wide. Use a dedicated service account where possible.                     |
-| Slack    | The Slack app acts as its own bot user — no separate account needed.                                    |
+| Provider | Guidance                                                                                                                               |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub   | Use a GitHub App installation — the app acts as its own bot user (e.g. `my-app[bot]`). No separate GitHub account needs to be created. |
+| Linear   | Linear API keys are workspace-wide. Use a dedicated service account where possible.                                                    |
+| Slack    | The Slack app acts as its own bot user — no separate account needed.                                                                   |
 
 ---
 
@@ -72,11 +71,11 @@ Each provider should have a dedicated service account used exclusively by cowork
 
 Grant each token only the permissions it actually needs.
 
-**GitHub** — Use fine-grained personal access tokens:
+**GitHub** — Use a GitHub App installation token:
 
-- Scope to specific repositories (not the entire org or account)
-- Repository permissions: **Contents** read/write + **Issues** read/write + **Pull requests** read/write only
-- Never use classic tokens with full `repo` scope
+- The app installation token is scoped to the org and repos the app was granted access to
+- Permissions are defined on the GitHub App itself — grant only the repository permissions the agent needs (Contents, Issues, Pull requests read/write)
+- No personal access token is required
 
 **Linear** — API keys have full workspace access. Use a dedicated service account and treat the key as a high-value credential.
 

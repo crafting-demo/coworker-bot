@@ -9,7 +9,7 @@ export interface CommentInfo {
 }
 
 export class GitHubComments {
-  constructor(private readonly token: string) {}
+  constructor(private readonly tokenGetter: () => string) {}
 
   async getLastComment(
     repository: string,
@@ -24,7 +24,7 @@ export class GitHubComments {
     const fetchPage = async (url: string) => {
       const response = await fetchWithTimeout(url, {
         headers: {
-          Authorization: `Bearer ${this.token}`,
+          Authorization: `Bearer ${this.tokenGetter()}`,
           Accept: 'application/vnd.github.v3+json',
           'User-Agent': 'coworker-bot-watcher',
         },
@@ -102,7 +102,7 @@ export class GitHubComments {
       return await withExponentialRetry(async () => {
         const response = await fetchWithTimeout(endpoint, {
           headers: {
-            Authorization: `Bearer ${this.token}`,
+            Authorization: `Bearer ${this.tokenGetter()}`,
             Accept: 'application/vnd.github.v3+json',
             'User-Agent': 'coworker-bot-watcher',
           },
@@ -146,7 +146,7 @@ export class GitHubComments {
       return await withExponentialRetry(async () => {
         const response = await fetchWithTimeout(endpoint, {
           headers: {
-            Authorization: `Bearer ${this.token}`,
+            Authorization: `Bearer ${this.tokenGetter()}`,
             Accept: 'application/vnd.github.v3+json',
             'User-Agent': 'coworker-bot-watcher',
           },
@@ -178,41 +178,14 @@ export class GitHubComments {
     }
   }
 
-  async getAuthenticatedUser(): Promise<string | null> {
-    try {
-      return await withExponentialRetry(async () => {
-        const response = await fetchWithTimeout('https://api.github.com/user', {
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-            Accept: 'application/vnd.github.v3+json',
-            'User-Agent': 'coworker-bot-watcher',
-          },
-        });
-
-        if (!response.ok) {
-          logger.warn(
-            `GitHub API error getting authenticated user: ${response.status} ${response.statusText}`
-          );
-          return null;
-        }
-
-        const user = (await response.json()) as { login: string };
-        return user.login;
-      });
-    } catch (error) {
-      logger.error('Error fetching authenticated GitHub user', error);
-      return null;
-    }
-  }
-
   async getAccessibleRepositories(): Promise<string[]> {
     try {
       return await withExponentialRetry(async () => {
         const response = await fetchWithTimeout(
-          'https://api.github.com/user/repos?per_page=100&sort=updated',
+          'https://api.github.com/installation/repositories?per_page=100',
           {
             headers: {
-              Authorization: `Bearer ${this.token}`,
+              Authorization: `Bearer ${this.tokenGetter()}`,
               Accept: 'application/vnd.github.v3+json',
               'User-Agent': 'coworker-bot-watcher',
             },
@@ -226,8 +199,11 @@ export class GitHubComments {
           return [];
         }
 
-        const repos = (await response.json()) as Array<{ full_name: string }>;
-        return repos.map((r) => r.full_name);
+        const data = (await response.json()) as {
+          total_count: number;
+          repositories: Array<{ full_name: string }>;
+        };
+        return data.repositories.map((r) => r.full_name);
       });
     } catch (error) {
       logger.error('Error fetching accessible GitHub repositories', error);
@@ -250,7 +226,7 @@ export class GitHubComments {
       const response = await fetchWithTimeout(endpoint, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${this.token}`,
+          Authorization: `Bearer ${this.tokenGetter()}`,
           Accept: 'application/vnd.github.v3+json',
           'Content-Type': 'application/json',
           'User-Agent': 'coworker-bot-watcher',

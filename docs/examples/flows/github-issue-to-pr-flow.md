@@ -188,7 +188,7 @@ The PR is ready for your review. The Crafting Sandbox Coding Agent has done all 
 **You comment on the issue:**
 
 ```
-@coworker-bot-bot Can you also add keyboard shortcut Ctrl+D to toggle dark mode?
+@coworker-bot Can you also add keyboard shortcut Ctrl+D to toggle dark mode?
 ```
 
 **The Crafting Sandbox Coding Agent:**
@@ -214,9 +214,6 @@ This flow requires minimal configuration in your `config/watcher.yaml`:
 providers:
   github:
     enabled: true
-    auth:
-      type: token
-      tokenEnv: GITHUB_PERSONAL_ACCESS_TOKEN
     options:
       webhookSecretEnv: GITHUB_WEBHOOK_SECRET
       repositories:

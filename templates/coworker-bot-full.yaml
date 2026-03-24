@@ -6,42 +6,43 @@
 # documented as a starting point.
 #
 # SETUP STEPS before creating this template:
-#   1. Create secrets for each provider you want:  see docs/setup/README.md
-#   2. Fill in required env vars below (REPOSITORIES, TEAMS) — BOT_USERNAMEs are auto-detected
-#   3. Delete the env vars, endpoints, containers, and customizations for any
+#   1. In Web Console → Connect → Github, connect to your github app and org repos.
+#   2. Create secrets for each provider you want:  see docs/setup/README.md
+#   3. Fill in required env vars below (REPOSITORIES, TEAMS) — BOT_USERNAMEs are auto-detected
+#   4. Delete the env vars, endpoints, containers, and customizations for any
 #      providers you are NOT using — see DELETE comments throughout this file
-#   4. Create template:  cs template create coworker-bot ./templates/coworker-bot-full.yaml
-#   5. Create sandbox:   cs sandbox create coworker-bot -t coworker-bot
+#   5. Create template:  cs template create coworker-bot ./templates/coworker-bot-full.yaml
+#   6. Create sandbox:   cs sandbox create coworker-bot -t coworker-bot
 #
 # After sandbox is created:
-#   6. Pin the sandbox:  cs sandbox pin coworker-bot
-#   7. Authorize MCP:    Web Console → Connect → LLM → Discovery → Authorize
-#   8. Configure webhooks for each provider you enabled
+#   7. Pin the sandbox:  cs sandbox pin coworker-bot
+#   8. Authorize MCP:    Web Console → Connect → LLM → Discovery → Authorize
+#   9. Configure webhooks for each provider you enabled
 # =============================================================================
 
 env:
   # ---------------------------------------------------------------------------
-  # GitHub secrets and configuration
+  # GitHub connection and configuration
   # DELETE this block if you are not using GitHub.
   #
+  # In Web Console → Connect → Github, connect to your github app and org repos.
+  # GITHUB_ORG is the name of the organization where the github app is installed.
   # Required secrets (create with cs secret create):
-  #   echo "YOUR_TOKEN" | cs secret create github-pat --shared -f -
   #   echo "$(openssl rand -hex 32)" | cs secret create github-webhook-secret --shared -f -
   #
-  # RECOMMENDED mark both secrets as Admin Only + Not Mountable in the Web Console.
+  # RECOMMENDED mark the secret as Admin Only + Not Mountable in the Web Console.
   # ---------------------------------------------------------------------------
-  - GITHUB_PERSONAL_ACCESS_TOKEN=${secret:github-pat}
+  - GITHUB_ORG=your-github-app-installed-org
   - GITHUB_WEBHOOK_SECRET=${secret:github-webhook-secret}
 
-  # Bot account GitHub username — used to filter events and skip the agent's own comments.
-  # Optional — auto-detected from the PAT if not set (via GET /user).
-  # Override only if auto-detection picks up the wrong account.
-  # MUST be a dedicated bot account, not your personal account.
-  # - GITHUB_BOT_USERNAME=your-bot-github-username
+  # Bot name for deduplication — events where the last comment is from this name are skipped.
+  # Optional — defaults to "coworker-bot" if not set.
+  # Set to the GitHub App bot username (e.g. my-app[bot]) or any arbitrary name.
+  # - GITHUB_BOT_USERNAME=coworker-bot
 
   # Repositories to monitor, comma-separated: owner/repo1,owner/repo2
-  # Optional — auto-detected from the PAT if not set (fine-grained PATs return
-  # only their scoped repos via GET /user/repos).
+  # Optional — auto-detected from the installation token if not set (github app returns
+  # only their scoped repos via GET /installation/repositories).
   # - GITHUB_REPOSITORIES=owner/repo
 
   # ---------------------------------------------------------------------------
@@ -132,14 +133,14 @@ endpoints:
   # GitHub MCP internal endpoint
   # DELETE if not using GitHub.
   # type: INTERNAL — not publicly accessible, only reachable within the sandbox.
-  # Routed through mcp-proxy which injects the Authorization header.
+  # Routed through mcp proxy which injects the Authorization header.
   # ---------------------------------------------------------------------------
   - name: github-mcp
     type: INTERNAL
     http:
       routes:
         - backend:
-            target: mcp-proxy
+            target: dev
             port: github
           path_prefix: /
       auth_proxy:
@@ -156,7 +157,7 @@ endpoints:
     http:
       routes:
         - backend:
-            target: mcp-proxy
+            target: dev
             port: linear
           path_prefix: /
       auth_proxy:
@@ -190,7 +191,7 @@ endpoints:
     http:
       routes:
         - backend:
-            target: mcp-proxy
+            target: dev
             port: jira
           path_prefix: /
       auth_proxy:
@@ -204,23 +205,32 @@ workspaces:
       - name: webhook
         port: 3000
         protocol: HTTP/TCP
+      # DELETE the github port if not using GitHub.
+      - name: github
+        port: 8082
+        protocol: HTTP/TCP
+      # DELETE the linear port if not using Linear.
+      - name: linear
+        port: 8080
+        protocol: HTTP/TCP
+      # DELETE the jira port if not using Jira.
+      - name: jira
+        port: 8083
+        protocol: HTTP/TCP
 
     checkouts:
       # The coworker-bot repo is checked out here on sandbox creation.
       # The watcher daemon (below) runs from this directory.
       - path: coworker-bot
         repo:
-          git: git@github.com:crafting-demo/coworker-bot.git
+          github:
+            # Fill the name of the organization where the github app is installed.
+            org: your-github-app-installed-org
+            repo: coworker-bot
         manifest:
           overlays:
-            - inline:
-                hooks:
-                  post-checkout:
-                    cmd: pnpm install
-                daemons:
-                  watcher:
-                    run:
-                      cmd: pnpm start
+            - file: .sandbox/setup.yaml
+            - file: .sandbox/proxy-full.yaml
 
     # -----------------------------------------------------------------------
     # ADVANCED: watcher.yaml file injection (optional)
@@ -286,81 +296,6 @@ containers:
       - name: github
         port: 8082
         protocol: HTTP/TCP
-
-  # ---------------------------------------------------------------------------
-  # nginx reverse proxy — injects auth tokens for GitHub and Linear MCP servers.
-  # DELETE if not using GitHub AND not using Linear.
-  # DELETE the GitHub server block (listen 8082) if not using GitHub.
-  # DELETE the Linear server block (listen 8080) if not using Linear.
-  #
-  # Why this container exists: MCP servers expect an Authorization: Bearer <token>
-  # header on every request. Rather than embedding the token in each MCP server
-  # container directly, it is injected here at the proxy layer so the MCP servers
-  # themselves never hold credentials.
-  #
-  # The nginx config is written inline using printf and shell variable expansion.
-  # $GITHUB_PERSONAL_ACCESS_TOKEN and $LINEAR_API_TOKEN are substituted at
-  # container startup from this container's env (set above in the env: block).
-  # ---------------------------------------------------------------------------
-  - name: mcp-proxy
-    image: nginx:alpine
-    env:
-      - GITHUB_PERSONAL_ACCESS_TOKEN=${secret:github-pat}
-      - LINEAR_API_TOKEN=${secret:linear-pat}
-      - JIRA_API_TOKEN=${secret:jira-api-token}
-    ports:
-      # DELETE the github port if not using GitHub.
-      - name: github
-        port: 8082
-        protocol: HTTP/TCP
-      # DELETE the linear port if not using Linear.
-      - name: linear
-        port: 8080
-        protocol: HTTP/TCP
-      # DELETE the jira port if not using Jira.
-      - name: jira
-        port: 8083
-        protocol: HTTP/TCP
-    volume_mounts:
-      - name: inline-volume
-        path: /etc/nginx/templates/default.conf.template
-        from:
-          volume:
-            name: inline-volume
-            content:
-              text: |
-                server {
-                  listen 8082;
-                  location /mcp {
-                    proxy_set_header Authorization "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}";
-                    proxy_set_header Host github-mcp;
-                    proxy_pass http://github-mcp:8082/mcp;
-                    proxy_http_version 1.1;
-                    proxy_buffering off;
-                  }
-                }
-                server {
-                  listen 8080;
-                  location /mcp {
-                    proxy_set_header Authorization "Bearer ${LINEAR_API_TOKEN}";
-                    proxy_set_header Host mcp.linear.app;
-                    proxy_pass https://mcp.linear.app/mcp;
-                    proxy_http_version 1.1;
-                    proxy_buffering off;
-                    proxy_ssl_server_name on;
-                  }
-                }
-                server {
-                  listen 8083;
-                  location /mcp {
-                    proxy_set_header Authorization "Bearer ${JIRA_API_TOKEN}";
-                    proxy_set_header Host mcp.atlassian.com;
-                    proxy_pass https://mcp.atlassian.com/v1/mcp;
-                    proxy_http_version 1.1;
-                    proxy_buffering off;
-                    proxy_ssl_server_name on;
-                  }
-                }
 
   # ---------------------------------------------------------------------------
   # Slack MCP server container
