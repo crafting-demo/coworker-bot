@@ -178,6 +178,33 @@ export class GitHubComments {
     }
   }
 
+  async getAuthenticatedUser(): Promise<string | null> {
+    try {
+      return await withExponentialRetry(async () => {
+        const response = await fetchWithTimeout('https://api.github.com/user', {
+          headers: {
+            Authorization: `Bearer ${this.tokenGetter()}`,
+            Accept: 'application/vnd.github.v3+json',
+            'User-Agent': 'coworker-bot-watcher',
+          },
+        });
+
+        if (!response.ok) {
+          logger.warn(
+            `GitHub API error getting authenticated user: ${response.status} ${response.statusText}`
+          );
+          return null;
+        }
+
+        const user = (await response.json()) as { login: string };
+        return user.login;
+      });
+    } catch (error) {
+      logger.error('Error fetching authenticated GitHub user', error);
+      return null;
+    }
+  }
+
   async getAccessibleRepositories(): Promise<string[]> {
     try {
       return await withExponentialRetry(async () => {

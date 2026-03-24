@@ -100,10 +100,34 @@ export class GitHubProvider extends BaseProvider {
         }
       | undefined;
 
-    // Read bot username(s) for deduplication — defaults to 'coworker-bot' if not set
-    const rawBotUsername = options?.botUsername ?? 'coworker-bot';
-    this.botUsernames = Array.isArray(rawBotUsername) ? rawBotUsername : [rawBotUsername];
-    logger.debug(`GitHub bot usernames: ${this.botUsernames.join(', ')}`);
+    // Read bot username(s) for deduplication.
+    // Auto-detection via GET /user works for PATs but NOT for GitHub App installation tokens
+    // (which return 403). In GitHub App mode, users must set botUsername explicitly.
+    if (options?.botUsername) {
+      const raw = options.botUsername;
+      this.botUsernames = Array.isArray(raw) ? raw : [raw];
+      logger.debug(`GitHub bot usernames (configured): ${this.botUsernames.join(', ')}`);
+    } else if (config.auth && this.comments) {
+      // PAT mode — GET /user works fine
+      const detected = await this.comments.getAuthenticatedUser();
+      if (detected) {
+        this.botUsernames = [detected];
+        logger.debug(`GitHub bot usernames (auto-detected): ${this.botUsernames.join(', ')}`);
+      } else {
+        logger.warn(
+          'GitHub: botUsername not configured and auto-detection failed - deduplication will not work'
+        );
+      }
+    } else if (process.env.GITHUB_ORG) {
+      // GitHub App mode — installation tokens cannot call GET /user (403)
+      logger.warn(
+        'GitHub: Using GitHub App auth but botUsername is not configured. ' +
+          'Set GITHUB_BOT_USERNAME env var (e.g. "my-app[bot]") or botUsername in watcher.yaml - ' +
+          'deduplication will not work until this is set'
+      );
+    } else {
+      logger.warn('GitHub: No auth configured - botUsername auto-detection skipped');
+    }
 
     // Resolve webhook secret if provided
     const webhookSecret = ConfigLoader.resolveSecret(
