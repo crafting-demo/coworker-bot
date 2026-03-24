@@ -89,14 +89,25 @@ export class GitHubComments {
    * @param repository - Repository in format "owner/repo"
    * @param resourceNumber - Issue or PR number
    * @param limit - Maximum number of comments to fetch
+   * @param since - Only return comments created after this date
    * @returns Array of recent comments
    */
   async listComments(
     repository: string,
     resourceNumber: number,
-    limit: number = 10
+    limit: number = 10,
+    since?: Date
   ): Promise<CommentInfo[]> {
-    const endpoint = `https://api.github.com/repos/${repository}/issues/${resourceNumber}/comments?per_page=${limit}&sort=created&direction=desc`;
+    const url = new URL(
+      `https://api.github.com/repos/${repository}/issues/${resourceNumber}/comments`
+    );
+    url.searchParams.set('per_page', String(limit));
+    url.searchParams.set('sort', 'created');
+    url.searchParams.set('direction', 'desc');
+    if (since) {
+      url.searchParams.set('since', since.toISOString());
+    }
+    const endpoint = url.toString();
 
     try {
       return await withExponentialRetry(async () => {
@@ -174,6 +185,33 @@ export class GitHubComments {
       });
     } catch (error) {
       logger.error('Error fetching GitHub PR details', error);
+      return null;
+    }
+  }
+
+  async getAuthenticatedUser(): Promise<string | null> {
+    try {
+      return await withExponentialRetry(async () => {
+        const response = await fetchWithTimeout('https://api.github.com/user', {
+          headers: {
+            Authorization: `Bearer ${this.tokenGetter()}`,
+            Accept: 'application/vnd.github.v3+json',
+            'User-Agent': 'coworker-bot-watcher',
+          },
+        });
+
+        if (!response.ok) {
+          logger.warn(
+            `GitHub API error getting authenticated user: ${response.status} ${response.statusText}`
+          );
+          return null;
+        }
+
+        const user = (await response.json()) as { login: string };
+        return user.login;
+      });
+    } catch (error) {
+      logger.error('Error fetching authenticated GitHub user', error);
       return null;
     }
   }

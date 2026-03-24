@@ -31,6 +31,7 @@ GitHub authentication uses the **GitHub App installation token** — no personal
 **Required env var:** `GITHUB_ORG` — the name of the org where the GitHub App is installed.
 
 **Required repository permissions on the GitHub App:**
+
 - Contents: Read and write
 - Issues: Read and write
 - Pull requests: Read and write

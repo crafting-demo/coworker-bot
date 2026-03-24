@@ -352,7 +352,14 @@ export class ConfigLoader {
         continue;
       }
 
-      if (!providerConfig.auth) {
+      const hasAuth =
+        providerConfig.auth ||
+        (name === 'github' && !!process.env.GITHUB_ORG) ||
+        (name === 'slack' && !!process.env.SLACK_BOT_TOKEN) ||
+        (name === 'linear' && !!process.env.LINEAR_API_TOKEN) ||
+        (name === 'jira' && !!process.env.JIRA_API_TOKEN) ||
+        (name === 'gitlab' && !!process.env.GITLAB_TOKEN);
+      if (!hasAuth) {
         logger.warn(
           `Provider ${name}: No auth configured. Polling mode and comment-based deduplication will not be available.`
         );

@@ -57,7 +57,10 @@ To prevent triggering the agent twice on the same issue or PR, Watcher uses a **
 2. If the last comment was posted by the configured bot username (case-insensitive) — skip
 3. Otherwise — proceed
 
-The bot username is set via `GITHUB_BOT_USERNAME` (or `options.botUsername` in `watcher.yaml`). It can be the GitHub App's bot username (e.g. `my-app[bot]`) or any arbitrary name. Defaults to `coworker-bot` if not set.
+The bot username is set via `GITHUB_BOT_USERNAME` (or `options.botUsername` in `watcher.yaml`). It must be the GitHub App's bot username — GitHub automatically appends `[bot]` to every App's login, so if your app is named `my-app`, the bot username is `my-app[bot]`.
+
+- **GitHub App mode** (`GITHUB_ORG` set): must be configured explicitly — GitHub App installation tokens cannot call `GET /user`, so there is no auto-detection.
+- **PAT mode** (`auth.token` set): auto-detected from the token via `GET /user` if not explicitly configured.
 
 This works because Watcher always posts a comment when it starts processing. If that comment is still the last one, no new human activity has occurred since the last run. If a human has commented since, it means there's new work to do.
 
@@ -178,13 +181,19 @@ providers:
   github:
     enabled: true
     pollingInterval: 60
-    # No auth block needed — the GitHub App installation token is injected
-    # automatically by the nginx mcp-proxy using the GITHUB_ORG env var.
+    # GitHub App mode: no auth block needed — installation token injected by mcp-proxy via GITHUB_ORG.
+    # PAT mode: provide an auth block instead:
+    #   auth:
+    #     tokenEnv: GITHUB_TOKEN
     options:
       webhookSecretEnv: GITHUB_WEBHOOK_SECRET
-      botUsername: coworker-bot # optional; defaults to "coworker-bot"
+      # GitHub App mode: required — installation tokens cannot auto-detect this.
+      # PAT mode: optional — auto-detected via GET /user if omitted.
+      botUsername: my-app[bot]
       repositories:
         - owner/repo
 ```
 
-GitHub authentication uses the GitHub App installation token, injected by the nginx mcp-proxy — no token env var is configured in the provider. Webhook secrets and other non-auth values still reference environment variables (`webhookSecretEnv`) or files (`webhookSecretFile`).
+**GitHub App mode** (`GITHUB_ORG` set): the installation token is injected by the nginx mcp-proxy — no `auth:` block is needed. `botUsername` must be set explicitly (installation tokens return 403 from `GET /user`).
+
+**PAT mode** (`auth.tokenEnv` set): the token is a Personal Access Token from a GitHub bot user. `botUsername` is auto-detected from the token via `GET /user` if not explicitly configured.

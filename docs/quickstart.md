@@ -7,38 +7,18 @@ Get coworker-bot running with GitHub in ~10 minutes.
 - [Node.js](https://nodejs.org/) v20+ (LTS recommended)
 - [pnpm](https://pnpm.io/installation) — install via `npm install -g pnpm` or the [standalone installer](https://pnpm.io/installation)
 - Crafting CLI (`cs`) installed and authenticated as an org admin
+- GitHub App integration enabled for your Crafting org (see Step 1 below)
 
 ---
 
-## 1. Create and connect a GitHub App
+## 1. Complete the GitHub App setup
 
-### 1a. Create a GitHub App
+GitHub App integration requires self-hosting setup covered in a separate guide. Ask Crafting for the **"GitHub App in Self-Hosting"** guide and complete it before continuing here.
 
-Create a new GitHub App in your GitHub organization (**Settings → Developer settings → GitHub Apps → New GitHub App**) and configure:
+Once done, you will have:
 
-**Permissions (Repository):**
-- Contents: Read and write
-- Issues: Read and write
-- Pull requests: Read and write
-
-**URLs** (replace `<name>` with your Crafting sandbox system hostname):
-
-| Field        | Value                                                              |
-| ------------ | ------------------------------------------------------------------ |
-| Callback URL | `https://<name>.sandboxes.site/integration/github/callback`       |
-| Webhook URL  | `https://<name>.sandboxes.site/integration/github/events`         |
-
-### 1b. Contact Crafting support to enable GitHub
-
-The GitHub App feature must be enabled for your sandbox system before you can use it. Contact the Crafting support team to enable it.
-
-### 1c. Connect the GitHub App in Crafting
-
-In the **Crafting Web Console → Connect → GitHub**: connect to your GitHub App and the org repos you want the agent to access.
-
-Note two values you will need below:
 - The **org name** where the app is installed → `GITHUB_ORG`
-- The **bot username** of the GitHub App (e.g. `coworker-bot`) → `GITHUB_BOT_USERNAME`
+- The **bot username** of the GitHub App → `GITHUB_BOT_USERNAME`. GitHub automatically appends `[bot]` to every App's login, so if your app is named `my-app`, the bot username is `my-app[bot]`.
 
 ---
 
@@ -65,8 +45,9 @@ curl -o _local/coworker-bot-quick-start.yaml \
 ```
 
 Open `_local/coworker-bot-quick-start.yaml` and set:
+
 - `GITHUB_ORG` — the org name from Step 1
-- `GITHUB_BOT_USERNAME` — optional; the GitHub App's bot username (e.g. `coworker-bot`) or any arbitrary name. Defaults to `coworker-bot`. Used for deduplication: events where the bot's comment is last are skipped.
+- `GITHUB_BOT_USERNAME` — **required for deduplication**; the GitHub App's bot username. GitHub automatically appends `[bot]` to every App's login (e.g. `my-app[bot]`). Installation tokens cannot auto-detect this — it must be set explicitly. Find the exact value by checking a comment already posted by the app in GitHub.
 
 `GITHUB_REPOSITORIES` is **auto-detected from the installation token** (via `GET /installation/repositories`) and can be left commented out. Uncomment and set it only if you want to override the auto-detected list.
 

@@ -13,7 +13,8 @@
     "lint": "eslint src/ tests/",
     "lint:fix": "eslint src/ tests/ --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "prepare": "husky"
   },
   "repository": {
     "type": "git",
@@ -27,6 +28,15 @@
     "url": "https://github.com/crafting-demo/coworker-bot/issues"
   },
   "homepage": "https://github.com/crafting-demo/coworker-bot#readme",
+  "lint-staged": {
+    "*.{ts,js}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,yaml,yml,md}": [
+      "prettier --write"
+    ]
+  },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/handlebars": "^4.1.0",
@@ -34,6 +44,8 @@
     "@types/node": "^25.3.0",
     "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.8.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",

@@ -100,10 +100,34 @@ export class GitHubProvider extends BaseProvider {
         }
       | undefined;
 
-    // Read bot username(s) for deduplication — defaults to 'coworker-bot' if not set
-    const rawBotUsername = options?.botUsername ?? 'coworker-bot';
-    this.botUsernames = Array.isArray(rawBotUsername) ? rawBotUsername : [rawBotUsername];
-    logger.debug(`GitHub bot usernames: ${this.botUsernames.join(', ')}`);
+    // Read bot username(s) for deduplication.
+    // Auto-detection via GET /user works for PATs but NOT for GitHub App installation tokens
+    // (which return 403). In GitHub App mode, users must set botUsername explicitly.
+    if (options?.botUsername) {
+      const raw = options.botUsername;
+      this.botUsernames = Array.isArray(raw) ? raw : [raw];
+      logger.debug(`GitHub bot usernames (configured): ${this.botUsernames.join(', ')}`);
+    } else if (config.auth && this.comments) {
+      // PAT mode — GET /user works fine
+      const detected = await this.comments.getAuthenticatedUser();
+      if (detected) {
+        this.botUsernames = [detected];
+        logger.debug(`GitHub bot usernames (auto-detected): ${this.botUsernames.join(', ')}`);
+      } else {
+        logger.warn(
+          'GitHub: botUsername not configured and auto-detection failed - deduplication will not work'
+        );
+      }
+    } else if (process.env.GITHUB_ORG) {
+      // GitHub App mode — installation tokens cannot call GET /user (403)
+      logger.warn(
+        'GitHub: Using GitHub App auth but botUsername is not configured. ' +
+          'Set GITHUB_BOT_USERNAME env var (e.g. "my-app[bot]") or botUsername in watcher.yaml - ' +
+          'deduplication will not work until this is set'
+      );
+    } else {
+      logger.warn('GitHub: No auth configured - botUsername auto-detection skipped');
+    }
 
     // Resolve webhook secret if provided
     const webhookSecret = ConfigLoader.resolveSecret(
@@ -128,12 +152,20 @@ export class GitHubProvider extends BaseProvider {
     }
     logger.info(`GitHub event filter: ${Object.keys(this.eventFilter).join(', ')}`);
 
-    // Auto-detect repositories from installation token if not explicitly configured
+    // Auto-detect repositories from the GitHub App installation token if not explicitly configured.
+    // GET /installation/repositories only works with App tokens, not PATs — skip in PAT mode.
     let repositories = options?.repositories ?? [];
-    if (this.token && repositories.length === 0 && this.comments) {
-      repositories = await this.comments.getAccessibleRepositories();
-      if (repositories.length > 0) {
-        logger.info(`GitHub repositories auto-detected: ${repositories.join(', ')}`);
+    if (repositories.length === 0 && this.comments) {
+      if (process.env.GITHUB_ORG) {
+        repositories = await this.comments.getAccessibleRepositories();
+        if (repositories.length > 0) {
+          logger.info(`GitHub repositories auto-detected: ${repositories.join(', ')}`);
+        }
+      } else if (config.auth) {
+        logger.warn(
+          'GitHub: PAT mode requires explicit repositories configuration for polling. ' +
+            'Set repositories in watcher.yaml options or GITHUB_REPOSITORIES env var.'
+        );
       }
     }
 
@@ -141,13 +173,16 @@ export class GitHubProvider extends BaseProvider {
 
     if (hasPollingConfig) {
       const pollerConfig: {
-        token: string;
+        tokenGetter: () => string;
         repositories: string[];
         events: string[];
         initialLookbackHours?: number;
         maxItemsPerPoll?: number;
       } = {
-        token: this.token!,
+        tokenGetter: () => {
+          this.refreshTokenIfNeeded();
+          return this.token!;
+        },
         repositories,
         events: Object.keys(this.eventFilter),
       };
@@ -291,6 +326,13 @@ export class GitHubProvider extends BaseProvider {
       return false;
     }
     if (resource.comment) {
+      // Skip comments authored by the bot itself (e.g. deduplication comments it posted)
+      if (
+        this.botUsernames.some((n) => n.toLowerCase() === resource.comment!.author.toLowerCase())
+      ) {
+        logger.debug(`Skipping ${type} #${resource.number} comment - authored by bot`);
+        return false;
+      }
       if (!isBotMentionedInText(resource.comment.body, this.botUsernames)) {
         logger.debug(`Skipping ${type} #${resource.number} comment - bot not mentioned`);
         return false;
@@ -339,27 +381,27 @@ export class GitHubProvider extends BaseProvider {
    * @param prNumber - The pull request number
    * @returns true if recent human comments/reviews found, false if only commits/bot activity
    */
-  private async hasRecentHumanInteraction(repository: string, prNumber: number): Promise<boolean> {
+  private async hasRecentHumanInteraction(
+    repository: string,
+    prNumber: number,
+    since?: Date
+  ): Promise<boolean> {
     if (!this.comments) {
       return true; // If we can't check, assume there is interaction
     }
 
     try {
-      // Check for recent comments (last 5 comments)
-      const comments = await this.comments.listComments(repository, prNumber, 5);
+      const comments = await this.comments.listComments(repository, prNumber, 5, since);
 
-      // If there are any comments, consider it as having interaction
-      // The deduplication system will handle if the bot already commented
       if (comments.length > 0) {
-        logger.debug(`PR #${prNumber} has ${comments.length} recent comment(s)`);
+        logger.debug(`PR #${prNumber} has ${comments.length} comment(s) since last poll`);
         return true;
       }
 
-      logger.debug(`PR #${prNumber} has no recent comments`);
+      logger.debug(`PR #${prNumber} has no comments since last poll`);
       return false;
     } catch (error) {
       logger.warn(`Failed to check comments for PR #${prNumber}`, error);
-      // On error, assume there is interaction to avoid missing important events
       return true;
     }
   }
@@ -393,7 +435,8 @@ export class GitHubProvider extends BaseProvider {
       // between commit updates (skip) vs human interaction (process)
       let hasRecentComments: boolean | undefined;
       if (resourceType === 'pull_request') {
-        hasRecentComments = await this.hasRecentHumanInteraction(repository, resourceNumber);
+        const since = this.poller!.getLastPollTime(repository);
+        hasRecentComments = await this.hasRecentHumanInteraction(repository, resourceNumber, since);
       }
 
       // Normalize event first to apply shared filtering logic

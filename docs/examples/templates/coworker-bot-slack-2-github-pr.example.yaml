@@ -13,8 +13,9 @@
 #        echo "$(openssl rand -hex 32)" | cs secret create github-webhook-secret --shared -f -
 #        echo "YOUR_SLACK_BOT_TOKEN"    | cs secret create slack-bot-token --shared -f -
 #        echo "YOUR_SLACK_SIGNING_SECRET" | cs secret create slack-signing-secret --shared -f -
-#   2. Connect github app: in Web Console → Connect → Github, connect to your github app and org repos.
-#   3. Fill in the required env vars below: GITHUB_ORG and GITHUB_REPOSITORIES; GITHUB_BOT_USERNAME is optional (default: "coworker-bot")
+#   2. Ask Crafting for the "GitHub App in Self-Hosting" guide and complete it first.
+#      Then in Web Console → Connect → Github, connect to your github app and org repos.
+#   3. Fill in the required env vars below: GITHUB_ORG, GITHUB_BOT_USERNAME, and optionally GITHUB_REPOSITORIES
 #   4. Create template:  cs template create coworker-bot-slack-github \
 #                          ./docs/examples/templates/coworker-bot-slack-2-github-pr.example.yaml
 #   5. Create sandbox:   cs sandbox create coworker-bot -t coworker-bot-slack-github
@@ -39,10 +40,10 @@ env:
   - GITHUB_ORG=your-github-app-installed-org
   - GITHUB_WEBHOOK_SECRET=${secret:github-webhook-secret}
 
-  # Bot name for deduplication — events where the last comment is from this name are skipped.
-  # Optional — defaults to "coworker-bot" if not set.
-  # Set to the GitHub App bot username (e.g. my-app[bot]) or any arbitrary name.
-  # - GITHUB_BOT_USERNAME=coworker-bot
+  # Required for deduplication. GitHub automatically appends "[bot]" to every App's login —
+  # if your app is named "my-app", the bot username is "my-app[bot]". Cannot be
+  # auto-detected; find it by checking a comment already posted by the app in GitHub.
+  - GITHUB_BOT_USERNAME=my-app[bot]
 
   # Repositories to monitor, comma-separated: owner/repo1,owner/repo2. Optional.
   # - GITHUB_REPOSITORIES=owner/repo

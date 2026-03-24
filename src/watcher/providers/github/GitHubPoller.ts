@@ -3,7 +3,7 @@ import { withExponentialRetry } from '../../utils/retry.js';
 import { fetchWithTimeout } from '../../utils/fetchWithTimeout.js';
 
 interface GitHubPollerConfig {
-  token: string;
+  tokenGetter: () => string;
   repositories: string[];
   events?: string[];
   initialLookbackHours?: number; // How many hours to look back on first poll (default: 1)
@@ -21,6 +21,10 @@ export class GitHubPoller {
   private lastPoll: Map<string, Date> = new Map();
 
   constructor(private readonly config: GitHubPollerConfig) {}
+
+  getLastPollTime(repo: string): Date | undefined {
+    return this.lastPoll.get(repo);
+  }
 
   async poll(): Promise<GitHubItem[]> {
     const items: GitHubItem[] = [];
@@ -125,7 +129,7 @@ export class GitHubPoller {
     const issues = await withExponentialRetry(async () => {
       const response = await fetchWithTimeout(url.toString(), {
         headers: {
-          Authorization: `Bearer ${this.config.token}`,
+          Authorization: `Bearer ${this.config.tokenGetter()}`,
           Accept: 'application/vnd.github.v3+json',
           'User-Agent': 'coworker-bot-watcher',
         },
@@ -198,7 +202,7 @@ export class GitHubPoller {
     const prs = await withExponentialRetry(async () => {
       const response = await fetchWithTimeout(url.toString(), {
         headers: {
-          Authorization: `Bearer ${this.config.token}`,
+          Authorization: `Bearer ${this.config.tokenGetter()}`,
           Accept: 'application/vnd.github.v3+json',
           'User-Agent': 'coworker-bot-watcher',
         },

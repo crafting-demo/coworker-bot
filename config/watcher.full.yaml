@@ -103,9 +103,17 @@ providers:
     # Polling configuration (optional - enables polling mode if repositories are provided)
     pollingInterval: 60  # Polling interval in seconds
 
-    # Authentication is handled externally by the nginx mcp-proxy, which injects the
-    # GitHub App installation token (fetched using GITHUB_ORG) as a Bearer header on
-    # every request to the github-mcp container. No auth block is needed here.
+    # Authentication — two modes:
+    #
+    # Mode 1 (GitHub App, recommended): no auth block needed. The nginx mcp-proxy injects the
+    # GitHub App installation token automatically using GITHUB_ORG. botUsername must be set
+    # explicitly (installation tokens cannot call GET /user for auto-detection).
+    #
+    # Mode 2 (PAT / bot user): provide an auth block with the PAT:
+    # auth:
+    #   tokenEnv: GITHUB_TOKEN   # env var holding the Personal Access Token
+    # In PAT mode, botUsername is auto-detected via GET /user if not set. Repositories must be
+    # configured explicitly — GET /installation/repositories only works for GitHub App tokens.
 
     # GitHub-specific options
     options:
@@ -117,11 +125,15 @@ providers:
       webhookSecretEnv: GITHUB_WEBHOOK_SECRET
       # webhookSecretFile: /path/to/secret/file
 
-      # Bot username(s) for deduplication (optional, default: "coworker-bot")
+      # Bot username(s) for deduplication.
       # Activity from these users will be skipped to prevent duplicate work.
       # If the last comment on an issue/PR is by any of these users, the event is skipped.
-      # Set to the GitHub App bot username (e.g. "my-app[bot]") or any arbitrary name.
-      # Corresponds to env var: GITHUB_BOT_USERNAME
+      #
+      # GitHub App mode: REQUIRED — set to the app's bot username (e.g. "my-app[bot]").
+      #   Installation tokens cannot call GET /user, so this cannot be auto-detected.
+      #   Corresponds to env var: GITHUB_BOT_USERNAME
+      #
+      # PAT mode: optional — auto-detected from the token via GET /user if not set.
       botUsername: coworker-bot
       # Multiple usernames:
       # botUsername:

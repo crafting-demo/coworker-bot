@@ -2,9 +2,10 @@
 # coworker-bot — GitHub Issue/PR → AI Agent → GitHub PR
 #
 # QUICK START (5 steps before creating this template):
-#   1. Connect github app: in Web Console → Connect → Github, connect to your github app and org repos.
+#   1. Ask Crafting for the "GitHub App in Self-Hosting" guide and complete it first.
+#      Then in Web Console → Connect → Github, connect to your github app and org repos.
 #   2. Create secrets:     see docs/setup/github.md
-#   3. Fill in env vars:   edit GITHUB_ORG below; optionally set GITHUB_BOT_USERNAME
+#   3. Fill in env vars:   edit GITHUB_ORG and GITHUB_BOT_USERNAME below
 #   4. Create template:    cs template create coworker-bot ./docs/examples/templates/coworker-bot-quick-start.yaml
 #   5. Create sandbox:     cs sandbox create coworker-bot -t coworker-bot
 #
@@ -32,10 +33,10 @@ env:
   # Optional configuration
   # ---------------------------------------------------------------------------
 
-  # Bot name for deduplication — events where the last comment is from this name are skipped.
-  # Defaults to "coworker-bot" if not set.
-  # Set to the GitHub App bot username (e.g. my-app[bot]) or any arbitrary name.
-  # - GITHUB_BOT_USERNAME=coworker-bot
+  # Required for deduplication. GitHub automatically appends "[bot]" to every App's login —
+  # if your app is named "my-app", the bot username is "my-app[bot]". Cannot be
+  # auto-detected; find it by checking a comment already posted by the app in GitHub.
+  - GITHUB_BOT_USERNAME=my-app[bot]
 
   # Repositories to monitor, comma-separated: owner/repo1,owner/repo2
   # Optional — auto-detected from the installation token if not set (github app returns
