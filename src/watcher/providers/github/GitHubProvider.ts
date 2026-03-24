@@ -30,6 +30,7 @@ export class GitHubProvider extends BaseProvider {
   private tokenExpiry: number = 0;
   private static readonly TOKEN_TTL_MS = 55 * 60 * 1000; // 55 minutes, matching nginx cache TTL
   private botUsernames: string[] = [];
+  private triggerLabels: string[] = [];
 
   private static readonly DEFAULT_WEBHOOK_EVENTS: Record<string, GitHubEventConfig> = {
     issues: { actions: ['all'], skipActions: [] },
@@ -96,6 +97,7 @@ export class GitHubProvider extends BaseProvider {
           initialLookbackHours?: number;
           maxItemsPerPoll?: number;
           botUsername?: string | string[];
+          triggerLabels?: string | string[];
           eventFilter?: Record<string, { actions?: string[]; skipActions?: string[] }>;
         }
       | undefined;
@@ -127,6 +129,12 @@ export class GitHubProvider extends BaseProvider {
       );
     } else {
       logger.warn('GitHub: No auth configured - botUsername auto-detection skipped');
+    }
+
+    if (options?.triggerLabels) {
+      const raw = options.triggerLabels;
+      this.triggerLabels = Array.isArray(raw) ? raw : [raw];
+      logger.info(`GitHub trigger labels: ${this.triggerLabels.join(', ')}`);
     }
 
     // Resolve webhook secret if provided
@@ -320,27 +328,45 @@ export class GitHubProvider extends BaseProvider {
       return false;
     }
 
-    // Assignment/mention filter: only process if bot is involved
-    if (this.botUsernames.length === 0) {
-      logger.error(`Skipping ${type} #${resource.number} - botUsername not configured`);
-      return false;
-    }
+    // Always skip comments authored by the bot itself (e.g. deduplication comments it posted).
+    // This must run unconditionally — before trigger label and assignment checks — to avoid
+    // the bot reacting to its own output regardless of how the event was admitted.
     if (resource.comment) {
-      // Skip comments authored by the bot itself (e.g. deduplication comments it posted)
       if (
         this.botUsernames.some((n) => n.toLowerCase() === resource.comment!.author.toLowerCase())
       ) {
         logger.debug(`Skipping ${type} #${resource.number} comment - authored by bot`);
         return false;
       }
-      if (!isBotMentionedInText(resource.comment.body, this.botUsernames)) {
-        logger.debug(`Skipping ${type} #${resource.number} comment - bot not mentioned`);
+    }
+
+    // Trigger label check: if configured and the resource has a matching label, bypass
+    // the assignment/mention requirement entirely.
+    const lowerTriggerLabels = this.triggerLabels.map((l) => l.toLowerCase());
+    const hasTriggeredByLabel =
+      lowerTriggerLabels.length > 0 &&
+      resource.labels?.some((l) => lowerTriggerLabels.includes(l.toLowerCase()));
+
+    if (hasTriggeredByLabel) {
+      logger.debug(
+        `${type} #${resource.number} matches trigger label - bypassing assignment check`
+      );
+    } else {
+      // Assignment/mention filter: only process if bot is involved
+      if (this.botUsernames.length === 0) {
+        logger.error(`Skipping ${type} #${resource.number} - botUsername not configured`);
         return false;
       }
-    } else {
-      if (!isBotAssignedInList(resource.assignees, this.botUsernames, (a) => (a as any).login)) {
-        logger.debug(`Skipping ${type} #${resource.number} - bot not assigned`);
-        return false;
+      if (resource.comment) {
+        if (!isBotMentionedInText(resource.comment.body, this.botUsernames)) {
+          logger.debug(`Skipping ${type} #${resource.number} comment - bot not mentioned`);
+          return false;
+        }
+      } else {
+        if (!isBotAssignedInList(resource.assignees, this.botUsernames, (a) => (a as any).login)) {
+          logger.debug(`Skipping ${type} #${resource.number} - bot not assigned`);
+          return false;
+        }
       }
     }
 

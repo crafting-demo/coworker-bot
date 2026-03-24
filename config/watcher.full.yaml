@@ -140,6 +140,17 @@ providers:
       #   - "coworker-bot"
       #   - "another-app[bot]"
 
+      # Trigger labels (optional)
+      # If an issue or PR has any of these labels, it is always processed regardless
+      # of whether the bot is assigned or @mentioned. Useful for GitHub App installs
+      # where assigning the bot user is inconvenient.
+      # Comparison is case-insensitive. Deduplication still applies.
+      # triggerLabels: coworker
+      # Multiple labels:
+      # triggerLabels:
+      #   - coworker
+      #   - ai-task
+
       # Repositories to monitor (required for polling mode)
       repositories:
         - owner/repo1
