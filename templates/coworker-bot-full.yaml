@@ -37,10 +37,10 @@ env:
 
   # GitHub App bot username — REQUIRED for GitHub App mode.
   # Used for deduplication: events where the last comment is from this user are skipped.
-  # Must match the GitHub App's bot login exactly (e.g. "my-app[bot]").
-  # Find it by looking at a comment already posted by the app in GitHub,
-  # or in your GitHub App settings page (Settings → Developer settings → GitHub Apps).
-  # Cannot be auto-detected — GitHub App installation tokens do not support GET /user.
+  # GitHub automatically appends "[bot]" to every App's login — if your app is named
+  # "my-app", the bot username is "my-app[bot]". Cannot be auto-detected (installation
+  # tokens do not support GET /user). Find the exact value by looking at a comment
+  # already posted by the app in GitHub, or in GitHub App settings page.
   - GITHUB_BOT_USERNAME=my-app[bot]
 
   # Repositories to monitor, comma-separated: owner/repo1,owner/repo2

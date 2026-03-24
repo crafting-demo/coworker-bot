@@ -57,7 +57,7 @@ To prevent triggering the agent twice on the same issue or PR, Watcher uses a **
 2. If the last comment was posted by the configured bot username (case-insensitive) — skip
 3. Otherwise — proceed
 
-The bot username is set via `GITHUB_BOT_USERNAME` (or `options.botUsername` in `watcher.yaml`). It must be the GitHub App's bot username (e.g. `my-app[bot]`).
+The bot username is set via `GITHUB_BOT_USERNAME` (or `options.botUsername` in `watcher.yaml`). It must be the GitHub App's bot username — GitHub automatically appends `[bot]` to every App's login, so if your app is named `my-app`, the bot username is `my-app[bot]`.
 
 - **GitHub App mode** (`GITHUB_ORG` set): must be configured explicitly — GitHub App installation tokens cannot call `GET /user`, so there is no auto-detection.
 - **PAT mode** (`auth.token` set): auto-detected from the token via `GET /user` if not explicitly configured.

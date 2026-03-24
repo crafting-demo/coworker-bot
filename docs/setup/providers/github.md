@@ -15,7 +15,7 @@ There are two ways to authenticate the GitHub provider:
 Uses a GitHub App installation token injected automatically by the Crafting mcp-proxy. No token needs to be configured manually.
 
 - **`GITHUB_ORG`** — org where the GitHub App is installed (enables this mode)
-- **`GITHUB_BOT_USERNAME`** — **required for deduplication**; must be set to the GitHub App's bot username (e.g. `my-app[bot]`). Installation tokens cannot call `GET /user`, so the username cannot be auto-detected. Find the exact value by looking at a comment already posted by the app in GitHub, or in your GitHub App settings page.
+- **`GITHUB_BOT_USERNAME`** — **required for deduplication**; must be set to the GitHub App's bot username. GitHub automatically appends `[bot]` to every App's login — so if your app is named `my-app`, the bot username is `my-app[bot]`. Installation tokens cannot call `GET /user`, so this cannot be auto-detected. Find the exact value by looking at a comment already posted by the app in GitHub, or in your GitHub App settings page.
 
 ### Mode 2 — PAT / Bot User
 
@@ -51,7 +51,7 @@ In the **Crafting Web Console → Connect → GitHub**: connect to your GitHub A
 After connecting:
 
 - Note the **org name** where the app is installed → `GITHUB_ORG`
-- Set `GITHUB_BOT_USERNAME` to the GitHub App's bot username (e.g. `my-app[bot]`). See Mode 1 above.
+- Set `GITHUB_BOT_USERNAME` to the GitHub App's bot username. GitHub automatically appends `[bot]` to the app's login (e.g. if your app is named `my-app`, the bot username is `my-app[bot]`). See Mode 1 above.
 
 The app installation token is automatically injected by the mcp-proxy — no token secret needs to be created manually.
 

@@ -40,7 +40,7 @@ In the **Crafting Web Console → Connect → GitHub**: connect to your GitHub A
 Note two values you will need below:
 
 - The **org name** where the app is installed → `GITHUB_ORG`
-- The **bot username** of the GitHub App (e.g. `my-app[bot]`) → `GITHUB_BOT_USERNAME`
+- The **bot username** of the GitHub App → `GITHUB_BOT_USERNAME`. GitHub automatically appends `[bot]` to every App's login, so if your app is named `my-app`, the bot username is `my-app[bot]`.
 
 ---
 
@@ -69,7 +69,7 @@ curl -o _local/coworker-bot-quick-start.yaml \
 Open `_local/coworker-bot-quick-start.yaml` and set:
 
 - `GITHUB_ORG` — the org name from Step 1
-- `GITHUB_BOT_USERNAME` — **required for deduplication**; the GitHub App's bot username (e.g. `my-app[bot]`). GitHub App installation tokens cannot auto-detect this — it must be set explicitly. You can find the exact value by checking a comment already posted by the app in GitHub.
+- `GITHUB_BOT_USERNAME` — **required for deduplication**; the GitHub App's bot username. GitHub automatically appends `[bot]` to every App's login (e.g. `my-app[bot]`). Installation tokens cannot auto-detect this — it must be set explicitly. Find the exact value by checking a comment already posted by the app in GitHub.
 
 `GITHUB_REPOSITORIES` is **auto-detected from the installation token** (via `GET /installation/repositories`) and can be left commented out. Uncomment and set it only if you want to override the auto-detected list.
 

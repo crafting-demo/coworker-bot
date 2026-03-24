@@ -14,13 +14,13 @@ The GitHub provider supports two authentication modes. Use environment variables
 
 **GitHub App mode** — enabled when `GITHUB_ORG` is set:
 
-| Variable                  | Required                      | Description                                                                                                                                |
-| ------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GITHUB_ORG`              | Yes — enables GitHub App mode | Org where the GitHub App is installed; the installation token is injected automatically by the mcp-proxy                                   |
-| `GITHUB_BOT_USERNAME`     | Required                      | Bot username for deduplication (e.g. `my-app[bot]`). Installation tokens cannot auto-detect this via `GET /user` — must be set explicitly. |
-| `GITHUB_REPOSITORIES`     | Polling only                  | Comma-separated repos to poll: `owner/repo1,owner/repo2`; auto-detected from the installation token if not set                             |
-| `GITHUB_WEBHOOK_SECRET`   | Recommended                   | Shared secret used to verify webhook signatures                                                                                            |
-| `GITHUB_POLLING_INTERVAL` | Optional                      | Polling interval in seconds (default: `60`)                                                                                                |
+| Variable                  | Required                      | Description                                                                                                                                                                                                |
+| ------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_ORG`              | Yes — enables GitHub App mode | Org where the GitHub App is installed; the installation token is injected automatically by the mcp-proxy                                                                                                   |
+| `GITHUB_BOT_USERNAME`     | Required                      | Bot username for deduplication. GitHub automatically appends `[bot]` to every App's login (e.g. `my-app[bot]`). Cannot be auto-detected via `GET /user` with installation tokens — must be set explicitly. |
+| `GITHUB_REPOSITORIES`     | Polling only                  | Comma-separated repos to poll: `owner/repo1,owner/repo2`; auto-detected from the installation token if not set                                                                                             |
+| `GITHUB_WEBHOOK_SECRET`   | Recommended                   | Shared secret used to verify webhook signatures                                                                                                                                                            |
+| `GITHUB_POLLING_INTERVAL` | Optional                      | Polling interval in seconds (default: `60`)                                                                                                                                                                |
 
 **PAT / Bot User mode** — configured via `auth:` block in `watcher.yaml`:
 

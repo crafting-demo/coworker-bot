@@ -66,9 +66,9 @@ env:
   - GITHUB_ORG=your-github-app-installed-org # org where the GitHub App is installed
   - GITHUB_WEBHOOK_SECRET=${secret:github-webhook-secret}
 
-  # Required for deduplication — set to the GitHub App's bot username (e.g. my-app[bot]).
-  # GitHub App installation tokens cannot auto-detect this value.
-  # Find it by checking a comment already posted by the app in GitHub.
+  # Required for deduplication. GitHub automatically appends "[bot]" to every App's login —
+  # if your app is named "my-app", the bot username is "my-app[bot]". Cannot be
+  # auto-detected; find it by checking a comment already posted by the app in GitHub.
   - GITHUB_BOT_USERNAME=my-app[bot]
 
   # Optional — auto-detected from the installation token if not set:
