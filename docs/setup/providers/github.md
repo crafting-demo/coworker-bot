@@ -23,21 +23,28 @@ Uses a Personal Access Token belonging to a dedicated GitHub bot user account.
 
 - **`auth.tokenEnv`** in `watcher.yaml` — points to the env var holding the PAT
 - **`botUsername`** — optional; auto-detected from the token via `GET /user` if not set. The detected username is the GitHub login of the PAT owner.
+- **`repositories`** — required for polling; must be set explicitly. `GET /installation/repositories` is a GitHub App-only endpoint and does not work with PATs.
 
 ```yaml
 providers:
   github:
     auth:
-      tokenEnv: GITHUB_TOKEN # env var holding the PAT
+      tokenEnv: GITHUB_TOKEN  # env var holding the Personal Access Token
     options:
-      botUsername: my-bot # optional — auto-detected if omitted
+      # botUsername is auto-detected from the token if omitted
+      webhookSecretEnv: GITHUB_WEBHOOK_SECRET
+      repositories:           # required for polling in PAT mode
+        - owner/repo1
+        - owner/repo2
 ```
 
 ---
 
 ## Step 1 — Connect GitHub
 
-**GitHub App mode:** Connect your GitHub App to the Crafting org so the sandbox can authenticate with GitHub.
+### GitHub App mode
+
+Connect your GitHub App to the Crafting org so the sandbox can authenticate with GitHub.
 
 In the **Crafting Web Console → Connect → GitHub**: connect to your GitHub App and the org repos you want the agent to access.
 
@@ -46,9 +53,29 @@ After connecting:
 - Note the **org name** where the app is installed → `GITHUB_ORG`
 - Set `GITHUB_BOT_USERNAME` to the GitHub App's bot username (e.g. `my-app[bot]`). See Mode 1 above.
 
-The app installation token is automatically injected by the mcp-proxy into every GitHub MCP request — no secret needs to be created manually for authentication.
+The app installation token is automatically injected by the mcp-proxy — no token secret needs to be created manually.
 
-**PAT mode:** Create a dedicated GitHub user account for the bot, generate a PAT with `repo` scope, and store it as a Crafting secret.
+### PAT mode
+
+1. Create a dedicated GitHub user account for the bot (or use an existing bot account)
+2. Go to **GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens** (or classic tokens)
+3. Generate a PAT with these permissions:
+   - **Issues**: Read & Write
+   - **Pull requests**: Read & Write
+   - **Contents**: Read (needed to read repo data)
+4. Store the token as a Crafting secret:
+
+```bash
+echo "YOUR_PAT_HERE" | cs secret create github-pat --shared -f -
+```
+
+5. Reference it in your sandbox template's `env:` block:
+
+```yaml
+- GITHUB_TOKEN=${secret:github-pat}
+```
+
+Then in `watcher.yaml`, configure the `auth` block as shown in Mode 2 above.
 
 ---
 
@@ -88,26 +115,38 @@ How it works:
 
 The watcher auto-configures from environment variables set in the sandbox template, so a `watcher.yaml` file is not required for standard setups. If you need custom event filters, multiple repositories, or non-default polling, inject a `watcher.yaml` via the template's `files:` block (see the commented example in `docs/examples/templates/coworker-bot-quick-start.yaml`).
 
-Reference configuration:
+**GitHub App mode** (no `auth:` block — token injected by mcp-proxy via `GITHUB_ORG`):
 
 ```yaml
 providers:
   github:
     enabled: true
-    pollingInterval: 60 # seconds between polls (default: 60)
-
+    pollingInterval: 60  # seconds between polls (default: 60)
     options:
       webhookSecretEnv: GITHUB_WEBHOOK_SECRET
-      botUsername: my-app[bot] # Required for deduplication — set to the GitHub App's bot username (e.g. "my-app[bot]")
+      botUsername: my-app[bot]  # required — installation tokens cannot auto-detect this
+      # repositories: auto-detected from the installation token if not set
+      initialLookbackHours: 1
+      maxItemsPerPoll: 50
+```
 
-      # Repositories to monitor for polling (webhooks work without this).
-      # Optional — auto-detected from the installation token if not set.
-      repositories:
+**PAT mode** (`auth:` block with the token env var):
+
+```yaml
+providers:
+  github:
+    enabled: true
+    pollingInterval: 60
+    auth:
+      tokenEnv: GITHUB_TOKEN  # env var holding the Personal Access Token
+    options:
+      webhookSecretEnv: GITHUB_WEBHOOK_SECRET
+      # botUsername: auto-detected via GET /user if omitted
+      repositories:           # required in PAT mode — no installation API available
         - owner/repo1
         - owner/repo2
-
-      initialLookbackHours: 1 # how far back to look on first poll
-      maxItemsPerPoll: 50 # cap items processed per poll cycle
+      initialLookbackHours: 1
+      maxItemsPerPoll: 50
 ```
 
 ### Event filtering

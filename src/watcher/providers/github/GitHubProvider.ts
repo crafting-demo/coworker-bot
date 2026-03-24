@@ -152,12 +152,20 @@ export class GitHubProvider extends BaseProvider {
     }
     logger.info(`GitHub event filter: ${Object.keys(this.eventFilter).join(', ')}`);
 
-    // Auto-detect repositories from installation token if not explicitly configured
+    // Auto-detect repositories from the GitHub App installation token if not explicitly configured.
+    // GET /installation/repositories only works with App tokens, not PATs — skip in PAT mode.
     let repositories = options?.repositories ?? [];
-    if (this.token && repositories.length === 0 && this.comments) {
-      repositories = await this.comments.getAccessibleRepositories();
-      if (repositories.length > 0) {
-        logger.info(`GitHub repositories auto-detected: ${repositories.join(', ')}`);
+    if (repositories.length === 0 && this.comments) {
+      if (process.env.GITHUB_ORG) {
+        repositories = await this.comments.getAccessibleRepositories();
+        if (repositories.length > 0) {
+          logger.info(`GitHub repositories auto-detected: ${repositories.join(', ')}`);
+        }
+      } else if (config.auth) {
+        logger.warn(
+          'GitHub: PAT mode requires explicit repositories configuration for polling. ' +
+            'Set repositories in watcher.yaml options or GITHUB_REPOSITORIES env var.'
+        );
       }
     }
 
