@@ -18,11 +18,14 @@ export interface SlackEventPayload {
 
 export function normalizeWebhookEvent(
   payload: SlackEventPayload,
-  history?: string
+  history?: string,
+  actorEmail?: string,
+  actorUsername?: string
 ): NormalizedEvent {
   const event = payload.event!;
   const eventId = `slack:${event.channel}:${event.ts}:${payload.event_id || Date.now()}`;
   const channelId = event.channel;
+  const displayName = actorUsername || event.user;
 
   const resource: NormalizedEvent['resource'] = {
     number: 0,
@@ -31,12 +34,18 @@ export function normalizeWebhookEvent(
     url: '',
     state: 'open',
     repository: channelId,
-    author: event.user,
+    author: displayName,
     comment: {
       body: event.text || '',
-      author: event.user,
+      author: displayName,
     },
   };
+
+  const actor: NormalizedEvent['actor'] = {
+    username: displayName,
+    id: event.user,
+  };
+  if (actorEmail) actor.email = actorEmail;
 
   return {
     id: eventId,
@@ -44,10 +53,7 @@ export function normalizeWebhookEvent(
     type: 'message',
     action: 'created',
     resource,
-    actor: {
-      username: event.user,
-      id: event.user,
-    },
+    actor,
     metadata: {
       timestamp: event.ts,
       channel: channelId,
@@ -67,13 +73,16 @@ export function normalizePolledMention(
     user: string;
     permalink?: string;
   },
-  history?: string
+  history?: string,
+  actorEmail?: string,
+  actorUsername?: string
 ): NormalizedEvent {
   const eventId = `slack:${mention.channel}:${mention.ts}:polled`;
+  const displayName = actorUsername || mention.user;
 
   const commentObj: { body: string; author: string; url?: string } = {
     body: mention.text || '',
-    author: mention.user,
+    author: displayName,
   };
 
   if (mention.permalink) {
@@ -87,9 +96,15 @@ export function normalizePolledMention(
     url: mention.permalink || '',
     state: 'open',
     repository: mention.channel,
-    author: mention.user,
+    author: displayName,
     comment: commentObj,
   };
+
+  const actor: NormalizedEvent['actor'] = {
+    username: displayName,
+    id: mention.user,
+  };
+  if (actorEmail) actor.email = actorEmail;
 
   return {
     id: eventId,
@@ -97,10 +112,7 @@ export function normalizePolledMention(
     type: 'message',
     action: 'created',
     resource,
-    actor: {
-      username: mention.user,
-      id: mention.user,
-    },
+    actor,
     metadata: {
       timestamp: mention.ts,
       channel: mention.channel,

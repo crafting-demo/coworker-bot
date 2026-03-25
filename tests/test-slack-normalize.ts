@@ -231,3 +231,63 @@ test('normalizePolledMention - raw is the mention object', () => {
   const event = normalizePolledMention(mention);
   assert.deepEqual(event.raw, mention);
 });
+
+// --- actorUsername (display name resolution) ---
+
+test('normalizeWebhookEvent - with actorUsername uses display name instead of user ID', () => {
+  const event = normalizeWebhookEvent(appMentionPayload, undefined, undefined, 'jane.doe');
+
+  assert.equal(event.resource.author, 'jane.doe');
+  assert.equal(event.resource.comment?.author, 'jane.doe');
+  assert.equal(event.actor.username, 'jane.doe');
+  // actor.id always retains the raw Slack user ID
+  assert.equal(event.actor.id, 'U001');
+});
+
+test('normalizeWebhookEvent - with actorUsername and email both set', () => {
+  const event = normalizeWebhookEvent(appMentionPayload, undefined, 'jane@example.com', 'jane.doe');
+
+  assert.equal(event.actor.username, 'jane.doe');
+  assert.equal(event.actor.id, 'U001');
+  assert.equal(event.actor.email, 'jane@example.com');
+});
+
+test('normalizeWebhookEvent - without actorUsername falls back to user ID', () => {
+  const event = normalizeWebhookEvent(appMentionPayload, undefined, 'jane@example.com');
+
+  assert.equal(event.resource.author, 'U001');
+  assert.equal(event.actor.username, 'U001');
+  assert.equal(event.actor.id, 'U001');
+});
+
+test('normalizePolledMention - with actorUsername uses display name instead of user ID', () => {
+  const mention = {
+    channel: 'C001',
+    ts: '1705312800.000100',
+    text: '<@UBOT> help needed',
+    user: 'U001',
+  };
+
+  const event = normalizePolledMention(mention, undefined, undefined, 'jane.doe');
+
+  assert.equal(event.resource.author, 'jane.doe');
+  assert.equal(event.resource.comment?.author, 'jane.doe');
+  assert.equal(event.actor.username, 'jane.doe');
+  // actor.id always retains the raw Slack user ID
+  assert.equal(event.actor.id, 'U001');
+});
+
+test('normalizePolledMention - without actorUsername falls back to user ID', () => {
+  const mention = {
+    channel: 'C001',
+    ts: '1705312800.000100',
+    text: '<@UBOT> help needed',
+    user: 'U001',
+  };
+
+  const event = normalizePolledMention(mention, undefined, 'jane@example.com');
+
+  assert.equal(event.resource.author, 'U001');
+  assert.equal(event.actor.username, 'U001');
+  assert.equal(event.actor.id, 'U001');
+});

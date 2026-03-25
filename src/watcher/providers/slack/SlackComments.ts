@@ -140,7 +140,7 @@ export class SlackComments {
    * Get bot user ID.
    * Useful for checking if the bot was mentioned in a message.
    */
-  async getBotUserId(): Promise<string> {
+  async getBotInfo(): Promise<{ userId: string; username?: string }> {
     return withExponentialRetry(async () => {
       const endpoint = `${this.baseUrl}/auth.test`;
 
@@ -177,6 +177,7 @@ export class SlackComments {
         ok: data.ok,
         error: data.error,
         user_id: data.user_id,
+        user: data.user,
         team: data.team,
         team_id: data.team_id,
       });
@@ -190,8 +191,55 @@ export class SlackComments {
         throw new Error(`Slack auth failed: ${data.error || 'unknown error'} (${errorDetails})`);
       }
 
-      return data.user_id;
+      const result: { userId: string; username?: string } = { userId: data.user_id };
+      if (data.user) result.username = data.user;
+      return result;
     });
+  }
+
+  /**
+   * Get a Slack user's profile info (email, username) via users.info.
+   * Requires the users:read.email OAuth scope for email.
+   * Returns an empty object if the call fails.
+   */
+  async getUserInfo(userId: string): Promise<{ email?: string; username?: string }> {
+    try {
+      const endpoint = `${this.baseUrl}/users.info`;
+      const params = new URLSearchParams({ user: userId });
+
+      const response = await fetchWithTimeout(`${endpoint}?${params}`, {
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        logger.warn(`Slack users.info HTTP error for user ${userId}: ${response.status}`);
+        return {};
+      }
+
+      const data = (await response.json()) as {
+        ok: boolean;
+        user?: { name?: string; profile?: { email?: string; display_name?: string } };
+        error?: string;
+      };
+
+      if (!data.ok) {
+        logger.warn(`Slack users.info error for user ${userId}: ${data.error}`);
+        return {};
+      }
+
+      const result: { email?: string; username?: string } = {};
+      const email = data.user?.profile?.email;
+      const username = data.user?.profile?.display_name || data.user?.name;
+      if (email) result.email = email;
+      if (username) result.username = username;
+      return result;
+    } catch (error) {
+      logger.warn(`Failed to fetch Slack user info for ${userId}`, error);
+      return {};
+    }
   }
 
   /**
