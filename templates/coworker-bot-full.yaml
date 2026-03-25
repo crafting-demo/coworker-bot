@@ -227,10 +227,7 @@ workspaces:
       # The watcher daemon (below) runs from this directory.
       - path: coworker-bot
         repo:
-          github:
-            # Fill the name of the organization where the github app is installed.
-            org: your-github-app-installed-org
-            repo: coworker-bot
+          git: https://github.com/crafting-demo/coworker-bot
         manifest:
           overlays:
             - file: .sandbox/setup.yaml
