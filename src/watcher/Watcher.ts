@@ -145,7 +145,7 @@ export class Watcher extends WatcherEventEmitter {
     return async (event: NormalizedEvent, reactor: Reactor) => {
       try {
         // Check for duplicates using reactor
-        const isDuplicate = await this.isDuplicate(reactor);
+        const isDuplicate = await this.isDuplicate(reactor, event);
 
         if (isDuplicate) {
           logger.debug(`Event from ${providerName} is a duplicate, skipping`);
@@ -198,7 +198,14 @@ export class Watcher extends WatcherEventEmitter {
    * @param reactor - Provider-specific reactor for checking comments/messages
    * @returns true if this appears to be a duplicate event, false if should be processed
    */
-  private async isDuplicate(reactor: Reactor): Promise<boolean> {
+  private async isDuplicate(reactor: Reactor, event: NormalizedEvent): Promise<boolean> {
+    // Check failures are CI-driven events — each new failure is a distinct event.
+    // Skip comment-based deduplication so the bot always responds to new failures
+    // regardless of whether it already commented on the PR.
+    if (event.action === 'check_failed') {
+      return false;
+    }
+
     try {
       const lastComment = await reactor.getLastComment();
 
