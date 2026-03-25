@@ -195,7 +195,7 @@ Pull Request:
       - The owner/assignee is yourself
       - Include a summary about the changes and test results
       - Include the sandbox name and template name (use "" if no template was used)
-    - Add a comment to the {{#eq provider "slack"}}thread{{else}}Issue{{/eq}} with the same information as above
+    {{#ne provider "slack"}}- Add a comment to the {{#eq type "pull_request"}}Pull Request{{else}}Issue{{/eq}} with the same information as above{{/ne}}
     {{/eq}}
   {{else}}
   - If code change is required
@@ -225,7 +225,7 @@ Pull Request:
       - The owner/assignee is yourself
       - Include a summary about the changes and test results
       - Include the sandbox name and template name (use "" if no template was used)
-    - Add a comment to the {{#eq provider "slack"}}thread{{else}}Issue{{/eq}} with the same information as above
+    {{#ne provider "slack"}}- Add a comment to the {{#eq type "pull_request"}}Pull Request{{else}}Issue{{/eq}} with the same information as above{{/ne}}
     {{/eq}}
   {{#eq type "pull_request"}}
   - If code review is required

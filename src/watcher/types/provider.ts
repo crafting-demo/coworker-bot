@@ -112,6 +112,9 @@ export interface NormalizedEvent {
 
     /** Actor ID (provider-specific) */
     id: number | string;
+
+    /** Actor email (when available, e.g. resolved from Slack users.info) */
+    email?: string;
   };
 
   /** Event metadata */
