@@ -243,6 +243,47 @@ export class SlackComments {
   }
 
   /**
+   * Get a Slack channel's name via conversations.info.
+   * Returns the channel name (without #) or falls back to the channel ID.
+   */
+  async getChannelName(channelId: string): Promise<string> {
+    try {
+      const endpoint = `${this.baseUrl}/conversations.info`;
+      const params = new URLSearchParams({ channel: channelId });
+
+      const response = await fetchWithTimeout(`${endpoint}?${params}`, {
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        logger.warn(
+          `Slack conversations.info HTTP error for channel ${channelId}: ${response.status}`
+        );
+        return channelId;
+      }
+
+      const data = (await response.json()) as {
+        ok: boolean;
+        channel?: { name?: string };
+        error?: string;
+      };
+
+      if (!data.ok || !data.channel?.name) {
+        logger.warn(`Slack conversations.info error for channel ${channelId}: ${data.error}`);
+        return channelId;
+      }
+
+      return data.channel.name;
+    } catch (error) {
+      logger.warn(`Failed to fetch Slack channel name for ${channelId}`, error);
+      return channelId;
+    }
+  }
+
+  /**
    * Get the full conversation history of a thread.
    * Returns formatted string: "@user: message"
    */

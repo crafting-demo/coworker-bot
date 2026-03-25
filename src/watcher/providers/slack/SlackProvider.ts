@@ -226,18 +226,23 @@ export class SlackProvider extends BaseProvider {
     const reactor = new SlackReactor(this.comments, event.channel, threadTs, this.botUsernames);
 
     // Enrich event with actor info from Slack users.info (requires users:read.email scope for email)
-    const actorInfo = await this.comments.getUserInfo(event.user);
+    const [actorInfo, channelName] = await Promise.all([
+      this.comments.getUserInfo(event.user),
+      this.comments.getChannelName(event.channel),
+    ]);
     if (actorInfo.email)
       logger.debug(`Resolved Slack user ${event.user} email: ${actorInfo.email}`);
     if (actorInfo.username)
       logger.debug(`Resolved Slack user ${event.user} display name: ${actorInfo.username}`);
+    logger.debug(`Resolved Slack channel ${event.channel} name: ${channelName}`);
 
     // Normalize Slack event for template rendering
     const normalizedEvent = normalizeWebhookEvent(
       payload,
       history,
       actorInfo.email,
-      actorInfo.username
+      actorInfo.username,
+      channelName
     );
 
     await eventHandler(normalizedEvent, reactor);
@@ -287,18 +292,23 @@ export class SlackProvider extends BaseProvider {
         );
 
         // Enrich event with actor info from Slack users.info (requires users:read.email scope for email)
-        const actorInfo = await this.comments.getUserInfo(mention.user);
+        const [actorInfo, channelName] = await Promise.all([
+          this.comments.getUserInfo(mention.user),
+          this.comments.getChannelName(mention.channel),
+        ]);
         if (actorInfo.email)
           logger.debug(`Resolved Slack user ${mention.user} email: ${actorInfo.email}`);
         if (actorInfo.username)
           logger.debug(`Resolved Slack user ${mention.user} display name: ${actorInfo.username}`);
+        logger.debug(`Resolved Slack channel ${mention.channel} name: ${channelName}`);
 
         // Normalize polled mention for template rendering
         const normalizedEvent = normalizePolledMention(
           mention,
           history,
           actorInfo.email,
-          actorInfo.username
+          actorInfo.username,
+          channelName
         );
 
         await eventHandler(normalizedEvent, reactor);
