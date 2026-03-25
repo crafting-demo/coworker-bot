@@ -18,7 +18,8 @@ export interface SlackEventPayload {
 
 export function normalizeWebhookEvent(
   payload: SlackEventPayload,
-  history?: string
+  history?: string,
+  actorEmail?: string
 ): NormalizedEvent {
   const event = payload.event!;
   const eventId = `slack:${event.channel}:${event.ts}:${payload.event_id || Date.now()}`;
@@ -38,16 +39,19 @@ export function normalizeWebhookEvent(
     },
   };
 
+  const actor: NormalizedEvent['actor'] = {
+    username: event.user,
+    id: event.user,
+  };
+  if (actorEmail) actor.email = actorEmail;
+
   return {
     id: eventId,
     provider: 'slack',
     type: 'message',
     action: 'created',
     resource,
-    actor: {
-      username: event.user,
-      id: event.user,
-    },
+    actor,
     metadata: {
       timestamp: event.ts,
       channel: channelId,
@@ -67,7 +71,8 @@ export function normalizePolledMention(
     user: string;
     permalink?: string;
   },
-  history?: string
+  history?: string,
+  actorEmail?: string
 ): NormalizedEvent {
   const eventId = `slack:${mention.channel}:${mention.ts}:polled`;
 
@@ -91,16 +96,19 @@ export function normalizePolledMention(
     comment: commentObj,
   };
 
+  const actor: NormalizedEvent['actor'] = {
+    username: mention.user,
+    id: mention.user,
+  };
+  if (actorEmail) actor.email = actorEmail;
+
   return {
     id: eventId,
     provider: 'slack',
     type: 'message',
     action: 'created',
     resource,
-    actor: {
-      username: mention.user,
-      id: mention.user,
-    },
+    actor,
     metadata: {
       timestamp: mention.ts,
       channel: mention.channel,

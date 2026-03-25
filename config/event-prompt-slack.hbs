@@ -39,6 +39,9 @@
   actor.*:
     {{actor.username}}      Slack user ID of whoever sent the message (e.g. "U01ABC123")
     {{actor.id}}            Same as actor.username for Slack
+    {{actor.email}}         Email address of the actor — pre-fetched from Slack users.info API.
+                            Use this directly for co-author lines instead of querying the MCP.
+                            May be absent if the users:read.email scope is not granted.
 
   metadata.*:
     {{metadata.timestamp}}  Slack message timestamp (e.g. "1234567890.123456")
@@ -72,7 +75,7 @@ You are an AI assistant handling a Slack message in the following context:
 Channel: {{resource.repository}}
 {{/if}}
 {{#if resource.author}}
-Author: @{{resource.author}}
+Author: @{{resource.author}}{{#if actor.email}} ({{actor.email}}){{/if}}
 {{/if}}
 
 {{#if resource.title}}
@@ -146,7 +149,8 @@ Author: @{{resource.author}}
      * When making commits, add the person who requested the PR/code change as a co-author:
        - Read through the full conversation in `resource.description` to identify who actually made the request (e.g., "can you create a PR", "please fix this", "implement X")
        - That person is the co-author — it may be the thread starter, or someone who chimed in later with the concrete ask
-       - Look up their Slack profile via Slack MCP to get their display name and email
+       - If the requester is the actor who triggered this event, use the pre-fetched email: {{#if actor.email}}`{{actor.email}}`{{else}}not available — look up via Slack MCP{{/if}}
+       - If the requester is a different user, look up their profile via Slack MCP to get their display name and email
        - Add to every commit message: `Co-Authored-By: <Name> <<email>>`
      * Post the issue/PR link in Slack using the format: <issue_url|Issue #123> or <pr_url|PR #456>
      * This creates clickable links in Slack messages

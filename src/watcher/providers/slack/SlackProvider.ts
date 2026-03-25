@@ -66,9 +66,13 @@ export class SlackProvider extends BaseProvider {
     // Get bot user ID for mention detection and deduplication.
     // Token detection runs first; an explicit botUsername in config/env overrides it.
     try {
-      const botUserId = await this.comments.getBotUserId();
-      this.botUsernames = [botUserId];
-      logger.info(`Slack bot user ID auto-detected from token: ${botUserId}`);
+      const botInfo = await this.comments.getBotInfo();
+      this.botUsernames = [botInfo.userId];
+      logger.info(`Slack bot user ID auto-detected from token: ${botInfo.userId}`);
+      if (botInfo.username) {
+        this.botUsernames.push(botInfo.username);
+        logger.info(`Slack bot username resolved: ${botInfo.username}`);
+      }
       logger.info('Slack authentication successful');
 
       const override = config.options?.botUsername as string | undefined;
@@ -221,8 +225,13 @@ export class SlackProvider extends BaseProvider {
 
     const reactor = new SlackReactor(this.comments, event.channel, threadTs, this.botUsernames);
 
+    // Enrich event with actor info from Slack users.info (requires users:read.email scope for email)
+    const actorInfo = await this.comments.getUserInfo(event.user);
+    if (actorInfo.email)
+      logger.debug(`Resolved Slack user ${event.user} email: ${actorInfo.email}`);
+
     // Normalize Slack event for template rendering
-    const normalizedEvent = normalizeWebhookEvent(payload, history);
+    const normalizedEvent = normalizeWebhookEvent(payload, history, actorInfo.email);
 
     await eventHandler(normalizedEvent, reactor);
   }
@@ -270,8 +279,13 @@ export class SlackProvider extends BaseProvider {
           this.botUsernames
         );
 
+        // Enrich event with actor info from Slack users.info (requires users:read.email scope for email)
+        const actorInfo = await this.comments.getUserInfo(mention.user);
+        if (actorInfo.email)
+          logger.debug(`Resolved Slack user ${mention.user} email: ${actorInfo.email}`);
+
         // Normalize polled mention for template rendering
-        const normalizedEvent = normalizePolledMention(mention, history);
+        const normalizedEvent = normalizePolledMention(mention, history, actorInfo.email);
 
         await eventHandler(normalizedEvent, reactor);
       }
