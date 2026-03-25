@@ -91,6 +91,7 @@ A Slack Bot User OAuth Token (`xoxb-...`) used by both the webhook handler and t
    - `im:read`
    - `im:write`
    - `users:read`
+   - `users:read.email`
 4. Click **Install to Workspace** and authorize
 5. Copy the **Bot User OAuth Token** (starts with `xoxb-`)
 6. Add it to Crafting Sandbox as secret name `slack-bot-token`
