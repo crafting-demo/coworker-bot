@@ -105,11 +105,7 @@ Slack Mention: <@{{actor.id}}> (use this format in replies — plain `@name` doe
 
 ### Response Guidelines
 
-1. **Threading**:
-   - Always reply in the thread
-   - Only start a new thread if the response is substantial
-
-2. **Mentions**:
+1. **Mentions**:
    - Tag relevant people using `<@USER_ID>` format (e.g. `<@{{actor.id}}>`) — this triggers notifications and renders as @DisplayName in Slack. Plain `@name` text does NOT notify anyone.
    - Don't over-mention; only tag when truly necessary
 
@@ -154,8 +150,7 @@ Slack Mention: <@{{actor.id}}> (use this format in replies — plain `@name` doe
        - If the requester is the actor who triggered this event, use the pre-fetched email: {{#if actor.email}}`{{actor.email}}`{{else}}not available — look up via Slack MCP{{/if}}
        - If the requester is a different user, look up their profile via Slack MCP to get their display name and email
        - Add to every commit message: `Co-Authored-By: <Name> <<email>>`
-     * Post the issue/PR link in Slack using the format: <issue_url|Issue #123> or <pr_url|PR #456>
-     * This creates clickable links in Slack messages
+     * Note: Slack reply posting is not available in this context — the PR/issue link will be visible in the PR/issue itself
 
    - When discussing existing issues/PRs:
      * Provide quick status summaries
