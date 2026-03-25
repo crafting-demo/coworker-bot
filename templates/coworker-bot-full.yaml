@@ -26,14 +26,26 @@ env:
   # GitHub connection and configuration
   # DELETE this block if you are not using GitHub.
   #
-  # In Web Console → Connect → Github, connect to your github app and org repos.
-  # GITHUB_ORG is the name of the organization where the github app is installed.
-  # Required secrets (create with cs secret create):
-  #   echo "$(openssl rand -hex 32)" | cs secret create github-webhook-secret --shared -f -
-  #
-  # RECOMMENDED mark the secret as Admin Only + Not Mountable in the Web Console.
+  # It supports GitHub Personal Access Token or GitHub App.
+  # To connect GitHub App, from Web Console, click Connect → Github, 
+  # and connect to your github app and org repos.
   # ---------------------------------------------------------------------------
-  - GITHUB_ORG=your-github-app-installed-org
+
+  # Uncomment the following to use GitHub Personal Access Token.
+  # When this is specified, GitHub App is ignored.
+  # RECOMMENDED mark the secret as Admin Only + Not Mountable in the Web Console.
+  # - GITHUB_PAT=${secret:github-pat}
+
+  # Uncomment the following to use GitHub App.
+  # Make sure env `GITHUB_PAT`, or `GITHUB_PERSONAL_ACCESS_TOKEN` are unset.
+  # Otherwise this configuration will be ignored.
+  # - GITHUB_ORG=YOUR-GITHUB-ORG-NAME
+
+  # The secret for GitHub webhook callbacks.
+  # Make sure this value is the same as the webhook configured at GitHub side.
+  # To generate a random secret and save as a secret:
+  #   echo "$(openssl rand -hex 32)" | cs secret create github-webhook-secret --shared -f -
+  # RECOMMENDED mark the secret as Admin Only + Not Mountable in the Web Console.
   - GITHUB_WEBHOOK_SECRET=${secret:github-webhook-secret}
 
   # GitHub App bot username — REQUIRED for GitHub App mode.
@@ -227,10 +239,7 @@ workspaces:
       # The watcher daemon (below) runs from this directory.
       - path: coworker-bot
         repo:
-          github:
-            # Fill the name of the organization where the github app is installed.
-            org: your-github-app-installed-org
-            repo: coworker-bot
+          git: https://github.com/crafting-demo/coworker-bot
         manifest:
           overlays:
             - file: .sandbox/setup.yaml
