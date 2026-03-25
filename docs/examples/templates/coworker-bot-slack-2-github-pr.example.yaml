@@ -148,6 +148,8 @@ workspaces:
               enabled: true
               command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
               promptTemplateFile: ./config/event-prompt.hbs
+              prompts:
+                slack: ./config/event-prompt-slack.hbs
               useStdin: true
               followUp: true
             deduplication:
