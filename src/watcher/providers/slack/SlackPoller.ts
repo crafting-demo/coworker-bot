@@ -47,6 +47,7 @@ export class SlackPoller {
   async poll(): Promise<
     Array<{
       channel: string;
+      channelName?: string;
       ts: string;
       threadTs?: string;
       text: string;
@@ -104,6 +105,7 @@ export class SlackPoller {
       return matches.map((match) => {
         const result: {
           channel: string;
+          channelName?: string;
           ts: string;
           threadTs?: string;
           text: string;
@@ -111,6 +113,7 @@ export class SlackPoller {
           permalink?: string;
         } = {
           channel: match.channel.id,
+          ...(match.channel.name ? { channelName: match.channel.name } : {}),
           ts: match.ts,
           text: match.text,
           user: match.user,

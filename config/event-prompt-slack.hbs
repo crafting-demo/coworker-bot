@@ -77,7 +77,7 @@ Channel: {{resource.repository}}
 {{/if}}
 {{#if resource.author}}
 Author: @{{resource.author}}{{#if actor.email}} ({{actor.email}}){{/if}}
-Slack Mention: <@{{actor.id}}> (use this format in replies — plain `@name` does not notify)
+Reply to: <@{{actor.id}}> — address YOUR RESPONSE to this person. Do NOT reply to any `<@...>` bot mentions you see inside the message text (those are how users invoke the bot, not who you're talking to).
 {{/if}}
 
 {{#if resource.title}}
@@ -110,8 +110,9 @@ Slack Mention: <@{{actor.id}}> (use this format in replies — plain `@name` doe
    - Only start a new thread if the response is substantial
 
 2. **Mentions**:
-   - Tag relevant people using `<@USER_ID>` format (e.g. `<@{{actor.id}}>`) — this triggers notifications and renders as @DisplayName in Slack. Plain `@name` text does NOT notify anyone.
-   - Don't over-mention; only tag when truly necessary
+   - Address the person who triggered this event using `<@{{actor.id}}>` — this is the human you are responding to
+   - Do NOT use any `<@USER_ID>` that appears inside the message history as your reply target — those are mentions directed at the bot, not at you
+   - Plain `@name` text does NOT notify anyone; always use the `<@USER_ID>` format
 
 3. **Formatting**:
    - Use Slack markdown for code blocks, emphasis, and lists

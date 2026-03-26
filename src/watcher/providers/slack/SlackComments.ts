@@ -243,6 +243,38 @@ export class SlackComments {
   }
 
   /**
+   * Resolve a Slack channel ID to its human-readable name.
+   * Falls back to the raw ID if the API call fails or the scope is missing.
+   */
+  async getChannelName(channelId: string): Promise<string> {
+    try {
+      const endpoint = `${this.baseUrl}/conversations.info`;
+      const params = new URLSearchParams({ channel: channelId });
+
+      const response = await fetchWithTimeout(`${endpoint}?${params}`, {
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        return channelId;
+      }
+
+      const data = (await response.json()) as {
+        ok: boolean;
+        channel?: { name?: string };
+        error?: string;
+      };
+
+      return data.ok && data.channel?.name ? data.channel.name : channelId;
+    } catch {
+      return channelId;
+    }
+  }
+
+  /**
    * Get the full conversation history of a thread.
    * Returns formatted string: "@user: message"
    */

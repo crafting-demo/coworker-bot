@@ -189,7 +189,14 @@ export class CommandExecutor {
 
       // Post initial comment with user-friendly display string (always, even in dry-run)
       logger.info(`Executing command for event ${eventId}`);
-      const _commentRef = await reactor.postComment(`Agent is working on ${displayString}`);
+      const shortId = this.generateShortId(event);
+      let initialComment = `Agent is working on ${displayString}`;
+      const sandboxSystemUrl = process.env.SANDBOX_SYSTEM_URL?.replace(/\/+$/, '');
+      if (sandboxSystemUrl) {
+        const progressUrl = `${sandboxSystemUrl}/ai-tasks/${shortId}`;
+        initialComment += ` ${formatLink('View progress', progressUrl, event.provider)}`;
+      }
+      const _commentRef = await reactor.postComment(initialComment);
 
       // Dry-run mode: print command details without executing
       if (this.config.dryRun) {
