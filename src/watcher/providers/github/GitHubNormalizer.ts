@@ -1,5 +1,52 @@
 import type { NormalizedEvent } from '../../types/index.js';
 
+export interface GitHubStatusPayload {
+  state: 'pending' | 'success' | 'failure' | 'error';
+  sha: string;
+  context: string;
+  description: string | null;
+  target_url: string | null;
+  repository: {
+    full_name: string;
+  };
+  sender: {
+    id: number;
+    login: string;
+  };
+  // id is used to build a unique event id
+  id: number;
+}
+
+export interface GitHubCheckRunPayload {
+  action: string;
+  check_run: {
+    id: number;
+    name: string;
+    html_url: string;
+    conclusion: string | null;
+    head_sha: string;
+    pull_requests: Array<{
+      number: number;
+      head: { ref: string };
+      base: { ref: string };
+    }>;
+    output?: {
+      title?: string | null;
+      summary?: string | null;
+    };
+    app?: {
+      name?: string;
+    };
+  };
+  repository: {
+    full_name: string;
+  };
+  sender: {
+    id: number;
+    login: string;
+  };
+}
+
 export interface GitHubWebhookPayload {
   action: string;
   issue?: {
@@ -184,5 +231,140 @@ export function normalizePolledEvent(item: {
       polled: true,
     },
     raw: data,
+  };
+}
+
+/**
+ * Normalizes a check_run webhook event into a NormalizedEvent targeting the associated PR.
+ *
+ * @param payload  The check_run webhook payload.
+ * @param pr       The associated pull request (number, head/base branch). Callers must
+ *                 supply enriched PR data (title, description, url, labels) fetched
+ *                 from the GitHub API so the normalized event is fully populated.
+ * @param deliveryId  GitHub delivery ID for event uniqueness.
+ */
+export function normalizeCheckRunEvent(
+  payload: GitHubCheckRunPayload,
+  pr: {
+    number: number;
+    title: string;
+    description: string;
+    url: string;
+    state: string;
+    author?: string;
+    labels?: string[];
+    branch: string;
+    mergeTo: string;
+  },
+  deliveryId: string
+): NormalizedEvent {
+  const checkRun = payload.check_run;
+  const eventId = `github:${payload.repository.full_name}:check_run:${checkRun.id}:${deliveryId}`;
+
+  const resource: NormalizedEvent['resource'] = {
+    number: pr.number,
+    title: pr.title,
+    description: pr.description,
+    url: pr.url,
+    state: pr.state,
+    repository: payload.repository.full_name,
+    branch: pr.branch,
+    mergeTo: pr.mergeTo,
+    check: {
+      name: checkRun.name,
+      conclusion: checkRun.conclusion ?? 'failure',
+      url: checkRun.html_url,
+      ...(checkRun.output && (checkRun.output.title || checkRun.output.summary)
+        ? {
+            output: {
+              ...(checkRun.output.title ? { title: checkRun.output.title } : {}),
+              ...(checkRun.output.summary ? { summary: checkRun.output.summary } : {}),
+            },
+          }
+        : {}),
+    },
+  };
+
+  if (pr.author) resource.author = pr.author;
+  if (pr.labels && pr.labels.length > 0) resource.labels = pr.labels;
+
+  return {
+    id: eventId,
+    provider: 'github',
+    type: 'pull_request',
+    action: 'check_failed',
+    resource,
+    actor: {
+      username: payload.sender?.login || 'unknown',
+      id: payload.sender?.id || 0,
+    },
+    metadata: {
+      timestamp: new Date().toISOString(),
+      deliveryId,
+    },
+    raw: payload,
+  };
+}
+
+/**
+ * Normalizes a commit status webhook event (legacy status API, used by e.g. Buildkite OAuth mode)
+ * into a NormalizedEvent targeting the associated PR.
+ *
+ * @param payload  The status webhook payload.
+ * @param pr       Enriched PR data fetched from the GitHub API.
+ * @param deliveryId  GitHub delivery ID for event uniqueness.
+ */
+export function normalizeStatusEvent(
+  payload: GitHubStatusPayload,
+  pr: {
+    number: number;
+    title: string;
+    description: string;
+    url: string;
+    state: string;
+    author?: string;
+    labels?: string[];
+    branch: string;
+    mergeTo: string;
+  },
+  deliveryId: string
+): NormalizedEvent {
+  const eventId = `github:${payload.repository.full_name}:status:${payload.id}:${deliveryId}`;
+
+  const resource: NormalizedEvent['resource'] = {
+    number: pr.number,
+    title: pr.title,
+    description: pr.description,
+    url: pr.url,
+    state: pr.state,
+    repository: payload.repository.full_name,
+    branch: pr.branch,
+    mergeTo: pr.mergeTo,
+    check: {
+      name: payload.context,
+      conclusion: payload.state,
+      url: payload.target_url ?? pr.url,
+      ...(payload.description ? { output: { summary: payload.description } } : {}),
+    },
+  };
+
+  if (pr.author) resource.author = pr.author;
+  if (pr.labels && pr.labels.length > 0) resource.labels = pr.labels;
+
+  return {
+    id: eventId,
+    provider: 'github',
+    type: 'pull_request',
+    action: 'check_failed',
+    resource,
+    actor: {
+      username: payload.sender?.login || 'unknown',
+      id: payload.sender?.id || 0,
+    },
+    metadata: {
+      timestamp: new Date().toISOString(),
+      deliveryId,
+    },
+    raw: payload,
   };
 }

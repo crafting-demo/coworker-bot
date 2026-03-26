@@ -12,19 +12,24 @@ After provider-level filtering, `Watcher.isDuplicate()` checks the last comment/
 
 ### Webhook
 
-Accepted event types (default, overridable via `eventFilter`): `issues`, `pull_request`, `issue_comment`.
+Accepted event types (default, overridable via `eventFilter`): `issues`, `pull_request`, `issue_comment`, `check_run`, `status`.
 
-| Event type      | Default skipped actions                                                                                              | Bot involvement required           | Also skip if              |
-| --------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------- |
-| `issues`        | _(none)_                                                                                                             | Bot **assigned** to issue          | Issue is closed           |
-| `pull_request`  | `opened` `synchronize` `edited` `labeled` `unlabeled` `assigned` `unassigned` `locked` `unlocked` `review_requested` | Bot **assigned** to PR             | PR is closed/merged       |
-| `issue_comment` | _(none)_                                                                                                             | Bot **@mentioned** in comment body | Parent issue/PR is closed |
+| Event type      | Default skipped actions                                                                                              | Bot involvement required                                    | Also skip if                                                                         |
+| --------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `issues`        | _(none)_                                                                                                             | Bot **assigned** to issue                                   | Issue is closed                                                                      |
+| `pull_request`  | `opened` `synchronize` `edited` `labeled` `unlabeled` `assigned` `unassigned` `locked` `unlocked` `review_requested` | Bot **assigned** to PR                                      | PR is closed/merged                                                                  |
+| `issue_comment` | _(none)_                                                                                                             | Bot **@mentioned** in comment body                          | Parent issue/PR is closed                                                            |
+| `check_run`     | all except `completed`                                                                                               | `watchChecks: true` **or** PR has a matching `triggerLabel` | No associated open PR; conclusion is not failure/timed_out/cancelled/action_required |
+| `status`        | _(none — only `failure`/`error` states processed)_                                                                   | `watchChecks: true` **or** PR has a matching `triggerLabel` | No open PR whose HEAD matches the commit SHA                                         |
 
 Notes:
 
 - `issue_comment` events on a PR normalize to type `pull_request` (not `issue`)
 - Comments on closed resources are **always** skipped — the comment action is always `created`/`edited`/`deleted`, never `reopened`, so the "unless being reopened" escape used for other event types never applies here
 - `review_requested` is skipped by default — requesting a review from the bot account does **not** trigger it
+- `check_run` events normalize to action `check_failed` and target the associated PR (not the check run itself)
+- `status` is the legacy GitHub Commit Status API (used by some CI systems such as Buildkite in OAuth mode); `check_run` is the modern equivalent — subscribe to whichever your CI uses
+- Both `check_run` and `status` require `watchChecks: true` **or** a `triggerLabel` on the PR; without either, check failures are silently ignored
 
 ### Polling
 

@@ -140,6 +140,24 @@ providers:
       #   - "coworker-bot"
       #   - "another-app[bot]"
 
+      # Watch check failures (optional, default: false)
+      # When true, any failed check run (conclusion: failure, timed_out, cancelled,
+      # action_required) on a pull request triggers the bot — no assignment or @mention needed.
+      # When false (default), check failures only trigger if the PR has a matching triggerLabel.
+      # Requires the check_run webhook event to be enabled in your GitHub App / webhook settings.
+      watchChecks: true
+
+      # Trigger labels (optional)
+      # If an issue or PR has any of these labels, it is always processed regardless
+      # of whether the bot is assigned or @mentioned. Useful for GitHub App installs
+      # where assigning the bot user is inconvenient.
+      # Comparison is case-insensitive. Deduplication still applies.
+      # triggerLabels: coworker
+      # Multiple labels:
+      # triggerLabels:
+      #   - coworker
+      #   - ai-task
+
       # Repositories to monitor (required for polling mode)
       repositories:
         - owner/repo1
@@ -162,15 +180,21 @@ providers:
       #   issues:        all actions processed
       #   pull_request:  skips opened, synchronize, edited, labeled, unlabeled, assigned, unassigned, locked, unlocked
       #   issue_comment: all actions processed
+      #   check_run:     completed action only; failure conclusions only; requires watchChecks: true or a triggerLabel
+      #   status:        failure/error states only; requires watchChecks: true or a triggerLabel
       # If present, ONLY listed event types are processed.
       # Per event type:
       #   actions     - allowlist; use ['all'] to accept every action (default)
       #   skipActions - denylist applied after the allowlist
+      # NOTE: check_run and status also require watchChecks: true or a matching triggerLabel
+      # regardless of what eventFilter says — those flags gate the check-failure logic.
       # eventFilter:
       #   issues: {}
       #   pull_request:
       #     actions: ['closed', 'reopened', 'review_requested']
       #   issue_comment: {}
+      #   check_run: {}    # enable CI check failure handling (also set watchChecks: true)
+      #   status: {}       # enable legacy Status API failure handling (Buildkite OAuth mode)
 
   # Jira Provider (REST API v3)
   # Supports Jira Cloud (email + API token) and Jira Server/Data Center (PAT)

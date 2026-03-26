@@ -52,6 +52,14 @@ In PAT mode, `botUsername` is auto-detected from the token (the GitHub login of 
 | `SLACK_BOT_TOKEN`      | Yes — enables Slack | Bot User OAuth Token (`xoxb-...`) from the Slack app |
 | `SLACK_SIGNING_SECRET` | Recommended         | Signing secret used to verify webhook requests       |
 
+### Buildkite
+
+Buildkite is MCP-only — it gives the coding agent tools to read pipelines and builds. The watcher does not listen for Buildkite events; no webhook or bot username is needed.
+
+| Variable              | Required                          | Description                            |
+| --------------------- | --------------------------------- | -------------------------------------- |
+| `BUILDKITE_API_TOKEN` | Yes — enables Buildkite MCP tools | API token from Buildkite user settings |
+
 ### General
 
 | Variable            | Description                                                                                                           |

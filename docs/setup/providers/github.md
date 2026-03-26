@@ -65,6 +65,8 @@ The app installation token is automatically injected by the mcp-proxy — no tok
    - **Issues**: Read & Write
    - **Pull requests**: Read & Write
    - **Contents**: Read (needed to read repo data)
+   - **Checks**: Read — required for `check_run` webhook events (`watchChecks`)
+   - **Commit statuses**: Read — required for `status` webhook events (legacy CI)
 4. Store the token as a Crafting secret:
 
 ```bash
@@ -151,6 +153,40 @@ providers:
       maxItemsPerPoll: 50
 ```
 
+### Watching CI check failures
+
+To have the bot automatically react when a CI check fails on a pull request, enable `watchChecks`:
+
+```yaml
+options:
+  watchChecks: true
+```
+
+When `watchChecks: true`, any failed check run (conclusion: `failure`, `timed_out`, `cancelled`, `action_required`) on an open PR triggers the bot — no assignment or @mention needed. The bot receives the PR details plus the check name and failure output so it can investigate and fix the failure.
+
+Alternatively, you can use `triggerLabels` to gate check failure handling on a specific label:
+
+```yaml
+options:
+  triggerLabels:
+    - ai-fix # only react to check failures on PRs with this label
+```
+
+When a `triggerLabel` is set, check failures are processed only for PRs that carry a matching label — without requiring `watchChecks: true`.
+
+**Two check event types** — subscribe to whichever your CI system uses:
+
+| Event type  | Used by                                      | GitHub App permission required |
+| ----------- | -------------------------------------------- | ------------------------------ |
+| `check_run` | GitHub Actions, CircleCI, most modern CI     | **Checks** — Read              |
+| `status`    | Buildkite (OAuth mode), some legacy CI tools | **Commit statuses** — Read     |
+
+Both event types are handled identically by the bot after normalization. Enable both in your webhook/GitHub App settings if you are unsure which your CI uses.
+
+See Step 3 below for how to subscribe to these events in your GitHub webhook or GitHub App settings.
+
+---
+
 ### Event filtering
 
 **Default filtering:**
@@ -158,6 +194,8 @@ providers:
 - ✅ `issues` — all actions processed
 - ❌ `pull_request` — skips `opened`, `synchronize`, `edited`, `labeled`, `unlabeled`, `assigned`, `unassigned`, `locked`, `unlocked`
 - ✅ `issue_comment` — all actions processed
+- ✅ `check_run` — only `completed` action; only failure conclusions; requires `watchChecks: true` or a matching `triggerLabel`
+- ✅ `status` — only `failure`/`error` states; requires `watchChecks: true` or a matching `triggerLabel`
 - ❌ Any closed/merged item (unless action is `reopened`)
 
 Use `eventFilter` to override which event types and actions trigger sessions:
@@ -220,6 +258,8 @@ For each repository you want to monitor:
    - **Issues**
    - **Pull requests**
    - **Issue comments**
+   - **Check runs** — required for `watchChecks` / CI check failure handling (GitHub Actions, CircleCI, etc.)
+   - **Commit statuses** — required if your CI uses the legacy Status API (e.g. Buildkite in OAuth mode)
 6. Ensure **Active** is checked
 7. Click **Add webhook**
 

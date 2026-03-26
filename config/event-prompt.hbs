@@ -112,6 +112,27 @@ Pull Request:
 - Respond directly to the comment author's concerns
 
 {{/if}}
+{{#if resource.check}}
+## Failed Check
+
+**Check name**: {{resource.check.name}}
+**Conclusion**: {{resource.check.conclusion}}
+**Details URL**: {{resource.check.url}}
+{{#if resource.check.output.title}}
+**Output title**: {{resource.check.output.title}}
+{{/if}}
+{{#if resource.check.output.summary}}
+**Output summary**:
+{{resource.check.output.summary}}
+{{/if}}
+
+**Important**: This event was triggered by a FAILED CHECK. Before investigating:
+- Identify the system that runs this check from the check name and details URL (e.g. GitHub Actions, CircleCI, Jenkins, a 3rd-party service)
+- Check if there is an MCP server available that can interact with that system (e.g. a CI/CD MCP, test reporter MCP) — if so, use it to fetch detailed logs and failure context
+- If no MCP server is available, fetch the details URL directly or use `gh` CLI to retrieve run logs
+- Focus on fixing the root cause of the failure on the PR branch
+
+{{/if}}
 
 ## Instructions
 

@@ -150,7 +150,16 @@ export class GitHubComments {
   async getPullRequest(
     repository: string,
     prNumber: number
-  ): Promise<{ branch: string; mergeTo: string } | null> {
+  ): Promise<{
+    branch: string;
+    mergeTo: string;
+    title: string;
+    description: string;
+    url: string;
+    state: string;
+    author?: string;
+    labels?: string[];
+  } | null> {
     const endpoint = `https://api.github.com/repos/${repository}/pulls/${prNumber}`;
 
     try {
@@ -174,18 +183,86 @@ export class GitHubComments {
         }
 
         const pr = (await response.json()) as {
+          title: string;
+          body: string | null;
+          html_url: string;
+          state: string;
           head: { ref: string };
           base: { ref: string };
+          user?: { login: string };
+          labels?: Array<{ name: string }>;
         };
 
-        return {
+        const result: {
+          branch: string;
+          mergeTo: string;
+          title: string;
+          description: string;
+          url: string;
+          state: string;
+          author?: string;
+          labels?: string[];
+        } = {
           branch: pr.head.ref,
           mergeTo: pr.base.ref,
+          title: pr.title,
+          description: pr.body || '',
+          url: pr.html_url,
+          state: pr.state,
         };
+        if (pr.user?.login) result.author = pr.user.login;
+        if (pr.labels && pr.labels.length > 0) result.labels = pr.labels.map((l) => l.name);
+        return result;
       });
     } catch (error) {
       logger.error('Error fetching GitHub PR details', error);
       return null;
+    }
+  }
+
+  /**
+   * Returns open PRs that have the given commit SHA as their HEAD.
+   * Uses the commits/pulls API (requires `pulls` read permission).
+   */
+  async getPullRequestsForCommit(
+    repository: string,
+    sha: string
+  ): Promise<Array<{ number: number; head: { ref: string }; base: { ref: string } }>> {
+    const endpoint = `https://api.github.com/repos/${repository}/commits/${sha}/pulls`;
+
+    try {
+      return await withExponentialRetry(async () => {
+        const response = await fetchWithTimeout(endpoint, {
+          headers: {
+            Authorization: `Bearer ${this.tokenGetter()}`,
+            Accept: 'application/vnd.github.v3+json',
+            'User-Agent': 'coworker-bot-watcher',
+          },
+        });
+
+        if (!response.ok) {
+          if (response.status === 409) {
+            throw response;
+          }
+          logger.warn(
+            `GitHub API error getting PRs for commit ${sha}: ${response.status} ${response.statusText}`
+          );
+          return [];
+        }
+
+        const prs = (await response.json()) as Array<{
+          number: number;
+          state: string;
+          head: { ref: string };
+          base: { ref: string };
+        }>;
+
+        // Only return open PRs — closed/merged PRs are no longer actionable
+        return prs.filter((pr) => pr.state === 'open');
+      });
+    } catch (error) {
+      logger.error(`Error fetching PRs for commit ${sha}`, error);
+      return [];
     }
   }
 

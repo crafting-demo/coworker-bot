@@ -118,6 +118,14 @@ env:
   - JIRA_API_TOKEN=${secret:jira-api-token}
   - JIRA_WEBHOOK_SECRET=${secret:jira-webhook-secret}
 
+  # ---------------------------------------------------------------------------
+  # Buildkite secrets and configuration
+  # DELETE this block if you are not using Buildkite.
+  #
+  # Required secrets:
+  #   echo "YOUR_API_TOKEN" | cs secret create buildkite-api-token --shared -f -
+  # ---------------------------------------------------------------------------
+  - BUILDKITE_API_TOKEN=${secret:buildkite-api-token}
 endpoints:
   # ---------------------------------------------------------------------------
   # Public webhook endpoint — receives events pushed from all providers.
@@ -158,6 +166,22 @@ endpoints:
         - backend:
             target: dev
             port: github
+          path_prefix: /
+      auth_proxy:
+        disabled: true
+      path: /mcp
+
+  # ---------------------------------------------------------------------------
+  # Buildkite MCP internal endpoint
+  # DELETE if not using Buildkite.
+  # ---------------------------------------------------------------------------
+  - name: buildkite-mcp
+    type: INTERNAL
+    http:
+      routes:
+        - backend:
+            target: buildkite-mcp
+            port: buildkite
           path_prefix: /
       auth_proxy:
         disabled: true
@@ -269,6 +293,7 @@ workspaces:
               command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
               promptTemplateFile: ./config/event-prompt.hbs
               prompts:
+                jira: ./config/event-prompt-jira.hbs
                 slack: ./config/event-prompt-slack.hbs
               useStdin: true
               followUp: true
@@ -309,6 +334,17 @@ containers:
     ports:
       - name: github
         port: 8082
+        protocol: HTTP/TCP
+
+  - name: buildkite-mcp
+    image: ghcr.io/buildkite/buildkite-mcp-server:latest
+    args:
+      - http
+    env:
+      - HTTP_LISTEN_ADDR=0.0.0.0:8084
+    ports:
+      - name: buildkite
+        port: 8084
         protocol: HTTP/TCP
 
   # ---------------------------------------------------------------------------
@@ -367,4 +403,7 @@ customizations:
   # DELETE if not using Jira.
   - mcp_server:
       endpoint: jira-mcp
+
+  - mcp_server:
+      endpoint: buildkite-mcp
 

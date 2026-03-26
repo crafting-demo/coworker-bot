@@ -14,7 +14,11 @@ import { GitHubReactor } from './GitHubReactor.js';
 import {
   normalizeWebhookEvent,
   normalizePolledEvent,
+  normalizeCheckRunEvent,
+  normalizeStatusEvent,
   type GitHubWebhookPayload,
+  type GitHubCheckRunPayload,
+  type GitHubStatusPayload,
 } from './GitHubNormalizer.js';
 import { isBotMentionedInText, isBotAssignedInList } from '../../utils/eventFilter.js';
 import { ProviderError } from '../../utils/errors.js';
@@ -30,6 +34,8 @@ export class GitHubProvider extends BaseProvider {
   private tokenExpiry: number = 0;
   private static readonly TOKEN_TTL_MS = 55 * 60 * 1000; // 55 minutes, matching nginx cache TTL
   private botUsernames: string[] = [];
+  private triggerLabels: string[] = [];
+  private watchChecks: boolean = false;
 
   private static readonly DEFAULT_WEBHOOK_EVENTS: Record<string, GitHubEventConfig> = {
     issues: { actions: ['all'], skipActions: [] },
@@ -49,6 +55,8 @@ export class GitHubProvider extends BaseProvider {
       ],
     },
     issue_comment: { actions: ['all'], skipActions: [] },
+    check_run: { actions: ['completed'], skipActions: [] },
+    status: { actions: ['all'], skipActions: [] },
   };
 
   private eventFilter: Record<string, GitHubEventConfig> = {
@@ -96,6 +104,8 @@ export class GitHubProvider extends BaseProvider {
           initialLookbackHours?: number;
           maxItemsPerPoll?: number;
           botUsername?: string | string[];
+          triggerLabels?: string | string[];
+          watchChecks?: boolean;
           eventFilter?: Record<string, { actions?: string[]; skipActions?: string[] }>;
         }
       | undefined;
@@ -127,6 +137,17 @@ export class GitHubProvider extends BaseProvider {
       );
     } else {
       logger.warn('GitHub: No auth configured - botUsername auto-detection skipped');
+    }
+
+    if (options?.triggerLabels) {
+      const raw = options.triggerLabels;
+      this.triggerLabels = Array.isArray(raw) ? raw : [raw];
+      logger.info(`GitHub trigger labels: ${this.triggerLabels.join(', ')}`);
+    }
+
+    if (options?.watchChecks) {
+      this.watchChecks = true;
+      logger.info('GitHub check failure watching enabled');
     }
 
     // Resolve webhook secret if provided
@@ -239,6 +260,22 @@ export class GitHubProvider extends BaseProvider {
       return;
     }
 
+    // check_run and status events have different payload shapes — handle separately
+    if (event === 'check_run') {
+      await this.handleCheckRunWebhook(
+        body as GitHubCheckRunPayload,
+        deliveryId,
+        eventConfig,
+        eventHandler
+      );
+      return;
+    }
+
+    if (event === 'status') {
+      await this.handleStatusWebhook(body as GitHubStatusPayload, deliveryId, eventHandler);
+      return;
+    }
+
     // Early filtering: Check if this is a supported event type
     let resourceType: string;
     let resourceNumber: number;
@@ -298,6 +335,172 @@ export class GitHubProvider extends BaseProvider {
     await eventHandler(normalizedEvent, reactor);
   }
 
+  private async handleCheckRunWebhook(
+    payload: GitHubCheckRunPayload,
+    deliveryId: string,
+    eventConfig: GitHubEventConfig,
+    eventHandler: EventHandler
+  ): Promise<void> {
+    const checkRun = payload.check_run;
+    const repository = payload.repository.full_name;
+
+    // Only process completed events with a failure-like conclusion
+    const failureConclusions = ['failure', 'timed_out', 'cancelled', 'action_required'];
+    if (
+      payload.action !== 'completed' ||
+      !checkRun.conclusion ||
+      !failureConclusions.includes(checkRun.conclusion)
+    ) {
+      logger.debug(
+        `Skipping check_run "${checkRun.name}" - action=${payload.action} conclusion=${checkRun.conclusion}`
+      );
+      return;
+    }
+
+    // Only process check runs associated with a PR
+    if (!checkRun.pull_requests || checkRun.pull_requests.length === 0) {
+      logger.debug(`Skipping check_run "${checkRun.name}" - no associated pull requests`);
+      return;
+    }
+
+    for (const prRef of checkRun.pull_requests) {
+      const prNumber = prRef.number;
+
+      // Fetch full PR details to populate resource fields and labels
+      const prDetails = await this.comments!.getPullRequest(repository, prNumber);
+      if (!prDetails) {
+        logger.warn(`check_run: could not fetch PR #${prNumber} in ${repository}, skipping`);
+        continue;
+      }
+
+      const prArg: {
+        number: number;
+        title: string;
+        description: string;
+        url: string;
+        state: string;
+        author?: string;
+        labels?: string[];
+        branch: string;
+        mergeTo: string;
+      } = {
+        number: prNumber,
+        title: prDetails.title,
+        description: prDetails.description,
+        url: prDetails.url,
+        state: prDetails.state,
+        branch: prRef.head.ref,
+        mergeTo: prRef.base.ref,
+      };
+      if (prDetails.author) prArg.author = prDetails.author;
+      if (prDetails.labels) prArg.labels = prDetails.labels;
+
+      const normalizedEvent = normalizeCheckRunEvent(payload, prArg, deliveryId);
+
+      if (
+        !this.shouldProcessEvent(
+          normalizedEvent,
+          undefined,
+          eventConfig.actions,
+          eventConfig.skipActions
+        )
+      ) {
+        continue;
+      }
+
+      const reactor = new GitHubReactor(
+        this.comments!,
+        repository,
+        'pull_request',
+        prNumber,
+        this.botUsernames
+      );
+
+      await eventHandler(normalizedEvent, reactor);
+    }
+  }
+
+  private async handleStatusWebhook(
+    payload: GitHubStatusPayload,
+    deliveryId: string,
+    eventHandler: EventHandler
+  ): Promise<void> {
+    const repository = payload.repository.full_name;
+
+    // Only process failure/error states
+    if (payload.state !== 'failure' && payload.state !== 'error') {
+      logger.debug(`Skipping status event for "${payload.context}" - state=${payload.state}`);
+      return;
+    }
+
+    // Find open PRs whose HEAD is this commit
+    const openPRs = await this.comments!.getPullRequestsForCommit(repository, payload.sha);
+    if (openPRs.length === 0) {
+      logger.debug(
+        `Skipping status event for "${payload.context}" on ${payload.sha} - no open PRs`
+      );
+      return;
+    }
+
+    // Use a fixed eventFilter config — status events have no action sub-type
+    const eventConfig = this.eventFilter['status'] ?? { actions: ['all'], skipActions: [] };
+
+    for (const prRef of openPRs) {
+      const prNumber = prRef.number;
+
+      const prDetails = await this.comments!.getPullRequest(repository, prNumber);
+      if (!prDetails) {
+        logger.warn(`status: could not fetch PR #${prNumber} in ${repository}, skipping`);
+        continue;
+      }
+
+      const prArg: {
+        number: number;
+        title: string;
+        description: string;
+        url: string;
+        state: string;
+        author?: string;
+        labels?: string[];
+        branch: string;
+        mergeTo: string;
+      } = {
+        number: prNumber,
+        title: prDetails.title,
+        description: prDetails.description,
+        url: prDetails.url,
+        state: prDetails.state,
+        branch: prRef.head.ref,
+        mergeTo: prRef.base.ref,
+      };
+      if (prDetails.author) prArg.author = prDetails.author;
+      if (prDetails.labels) prArg.labels = prDetails.labels;
+
+      const normalizedEvent = normalizeStatusEvent(payload, prArg, deliveryId);
+
+      if (
+        !this.shouldProcessEvent(
+          normalizedEvent,
+          undefined,
+          eventConfig.actions,
+          eventConfig.skipActions
+        )
+      ) {
+        continue;
+      }
+
+      const reactor = new GitHubReactor(
+        this.comments!,
+        repository,
+        'pull_request',
+        prNumber,
+        this.botUsernames
+      );
+
+      await eventHandler(normalizedEvent, reactor);
+    }
+  }
+
   private shouldProcessEvent(
     event: NormalizedEvent,
     hasRecentComments?: boolean,
@@ -320,27 +523,58 @@ export class GitHubProvider extends BaseProvider {
       return false;
     }
 
-    // Assignment/mention filter: only process if bot is involved
-    if (this.botUsernames.length === 0) {
-      logger.error(`Skipping ${type} #${resource.number} - botUsername not configured`);
-      return false;
-    }
+    // Always skip comments authored by the bot itself (e.g. deduplication comments it posted).
+    // This must run unconditionally — before trigger label and assignment checks — to avoid
+    // the bot reacting to its own output regardless of how the event was admitted.
     if (resource.comment) {
-      // Skip comments authored by the bot itself (e.g. deduplication comments it posted)
       if (
         this.botUsernames.some((n) => n.toLowerCase() === resource.comment!.author.toLowerCase())
       ) {
         logger.debug(`Skipping ${type} #${resource.number} comment - authored by bot`);
         return false;
       }
-      if (!isBotMentionedInText(resource.comment.body, this.botUsernames)) {
-        logger.debug(`Skipping ${type} #${resource.number} comment - bot not mentioned`);
+    }
+
+    // Trigger label check: if configured and the resource has a matching label, bypass
+    // the assignment/mention requirement entirely.
+    const lowerTriggerLabels = this.triggerLabels.map((l) => l.toLowerCase());
+    const hasTriggeredByLabel =
+      lowerTriggerLabels.length > 0 &&
+      resource.labels?.some((l) => lowerTriggerLabels.includes(l.toLowerCase()));
+
+    // Check failure: admitted if watchChecks=true or a trigger label matches
+    const isCheckFailure = action === 'check_failed';
+    if (isCheckFailure) {
+      if (this.watchChecks || hasTriggeredByLabel) {
+        logger.debug(
+          `${type} #${resource.number} check failure admitted (watchChecks=${this.watchChecks}, labelMatch=${hasTriggeredByLabel})`
+        );
+      } else {
+        logger.debug(
+          `Skipping ${type} #${resource.number} check failure - watchChecks not enabled and no trigger label`
+        );
         return false;
       }
+    } else if (hasTriggeredByLabel) {
+      logger.debug(
+        `${type} #${resource.number} matches trigger label - bypassing assignment check`
+      );
     } else {
-      if (!isBotAssignedInList(resource.assignees, this.botUsernames, (a) => (a as any).login)) {
-        logger.debug(`Skipping ${type} #${resource.number} - bot not assigned`);
+      // Assignment/mention filter: only process if bot is involved
+      if (this.botUsernames.length === 0) {
+        logger.error(`Skipping ${type} #${resource.number} - botUsername not configured`);
         return false;
+      }
+      if (resource.comment) {
+        if (!isBotMentionedInText(resource.comment.body, this.botUsernames)) {
+          logger.debug(`Skipping ${type} #${resource.number} comment - bot not mentioned`);
+          return false;
+        }
+      } else {
+        if (!isBotAssignedInList(resource.assignees, this.botUsernames, (a) => (a as any).login)) {
+          logger.debug(`Skipping ${type} #${resource.number} - bot not assigned`);
+          return false;
+        }
       }
     }
 

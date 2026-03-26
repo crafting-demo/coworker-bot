@@ -65,6 +65,12 @@ export function formatResourceLink(event: NormalizedEvent): string {
     return formatLink(displayText, resource.url, provider);
   }
 
+  // For check failure events, link directly to the failed check
+  if (event.action === 'check_failed' && resource.check?.url) {
+    const checkText = resource.check.name || 'failed check';
+    return formatLink(checkText, resource.check.url, provider);
+  }
+
   // Standard format for GitHub/GitLab/Linear (e.g., "owner/repo#123")
   const displayText = `${resource.repository}#${resource.number}`;
 

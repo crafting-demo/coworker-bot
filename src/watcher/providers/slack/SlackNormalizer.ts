@@ -31,8 +31,7 @@ export function normalizeWebhookEvent(
   payload: SlackEventPayload,
   history?: string,
   actorEmail?: string,
-  actorUsername?: string,
-  channelName?: string
+  actorUsername?: string
 ): NormalizedEvent {
   const event = payload.event!;
   const eventId = `slack:${event.channel}:${event.ts}:${payload.event_id || Date.now()}`;
@@ -41,7 +40,7 @@ export function normalizeWebhookEvent(
 
   const resource: NormalizedEvent['resource'] = {
     number: 0,
-    title: `Message in #${channelName || channelId}`,
+    title: `your request`,
     description: history || event.text || '',
     url: '',
     state: 'open',
@@ -89,8 +88,7 @@ export function normalizePolledMention(
   },
   history?: string,
   actorEmail?: string,
-  actorUsername?: string,
-  channelName?: string
+  actorUsername?: string
 ): NormalizedEvent {
   const eventId = `slack:${mention.channel}:${mention.ts}:polled`;
   const displayName = actorUsername || mention.user;
@@ -106,7 +104,7 @@ export function normalizePolledMention(
 
   const resource: NormalizedEvent['resource'] = {
     number: 0,
-    title: `Message in #${channelName || mention.channel}`,
+    title: `your request`,
     description: history || mention.text || '',
     url: mention.permalink || '',
     state: 'open',

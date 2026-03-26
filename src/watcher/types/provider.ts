@@ -88,6 +88,21 @@ export interface NormalizedEvent {
       /** Comment URL (if available) */
       url?: string;
     };
+
+    /** Check run information (when event is triggered by a failed check) */
+    check?: {
+      /** Name of the check (e.g. "CI / build", "test (ubuntu)") */
+      name: string;
+      /** Conclusion: failure | timed_out | cancelled | action_required */
+      conclusion: string;
+      /** URL to the check run details page */
+      url: string;
+      /** Optional output from the check */
+      output?: {
+        title?: string;
+        summary?: string;
+      };
+    };
   };
 
   /** Actor who triggered the event */

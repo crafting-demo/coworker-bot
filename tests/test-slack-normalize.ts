@@ -94,7 +94,7 @@ test('normalizeWebhookEvent - app_mention in channel', () => {
   assert.equal(event.resource.number, 0);
   assert.equal(event.resource.state, 'open');
   assert.equal(event.resource.repository, 'C001');
-  assert.equal(event.resource.title, 'Message in #C001');
+  assert.equal(event.resource.title, 'your request');
   // author is used by {{resource.author}} in the prompt template ("Author: @{{resource.author}}")
   assert.equal(event.resource.author, 'U001');
   assert.equal(event.resource.comment?.body, '<@UBOT> can you help me with this?');

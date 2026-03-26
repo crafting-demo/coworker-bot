@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import {
   normalizeWebhookEvent,
   normalizePolledEvent,
+  normalizeCheckRunEvent,
+  normalizeStatusEvent,
+  type GitHubCheckRunPayload,
+  type GitHubStatusPayload,
 } from '../src/watcher/providers/github/GitHubNormalizer.js';
 
 // Fixtures — structures match the real GitHub webhook payloads as documented at
@@ -629,4 +633,141 @@ test('normalizePolledEvent - issue with no body uses empty string', () => {
 
   const event = normalizePolledEvent(item);
   assert.equal(event.resource.description, '');
+});
+
+// ---------------------------------------------------------------------------
+// normalizeCheckRunEvent
+// ---------------------------------------------------------------------------
+
+const checkRunPr = {
+  number: 7,
+  title: 'Add feature X',
+  description: 'PR body',
+  url: 'https://github.com/owner/repo/pull/7',
+  state: 'open',
+  author: 'alice',
+  labels: ['bug'],
+  branch: 'feature/x',
+  mergeTo: 'main',
+};
+
+const checkRunPayload: GitHubCheckRunPayload = {
+  action: 'completed',
+  check_run: {
+    id: 123456,
+    name: 'CI / build',
+    html_url: 'https://github.com/owner/repo/runs/123456',
+    conclusion: 'failure',
+    head_sha: 'abc123',
+    pull_requests: [{ number: 7, head: { ref: 'feature/x' }, base: { ref: 'main' } }],
+    output: { title: 'Build failed', summary: '3 errors found' },
+  },
+  repository: { full_name: 'owner/repo' },
+  sender: { id: 99, login: 'buildkite[bot]' },
+};
+
+test('normalizeCheckRunEvent - maps check_run fields to NormalizedEvent', () => {
+  const event = normalizeCheckRunEvent(checkRunPayload, checkRunPr, 'delivery-cr-1');
+
+  assert.equal(event.provider, 'github');
+  assert.equal(event.type, 'pull_request');
+  assert.equal(event.action, 'check_failed');
+  assert.equal(event.resource.number, 7);
+  assert.equal(event.resource.branch, 'feature/x');
+  assert.equal(event.resource.mergeTo, 'main');
+  assert.equal(event.resource.check?.name, 'CI / build');
+  assert.equal(event.resource.check?.conclusion, 'failure');
+  assert.equal(event.resource.check?.url, 'https://github.com/owner/repo/runs/123456');
+  assert.equal(event.resource.check?.output?.title, 'Build failed');
+  assert.equal(event.resource.check?.output?.summary, '3 errors found');
+  assert.equal(event.actor.username, 'buildkite[bot]');
+  assert.ok(event.id.startsWith('github:owner/repo:check_run:123456:'));
+});
+
+test('normalizeCheckRunEvent - propagates PR author and labels', () => {
+  const event = normalizeCheckRunEvent(checkRunPayload, checkRunPr, 'delivery-cr-2');
+  assert.equal(event.resource.author, 'alice');
+  assert.deepEqual(event.resource.labels, ['bug']);
+});
+
+test('normalizeCheckRunEvent - no output fields when check_run.output is absent', () => {
+  const payload: GitHubCheckRunPayload = {
+    ...checkRunPayload,
+    check_run: { ...checkRunPayload.check_run, output: undefined },
+  };
+  const event = normalizeCheckRunEvent(payload, checkRunPr, 'delivery-cr-3');
+  assert.equal(event.resource.check?.output, undefined);
+});
+
+test('normalizeCheckRunEvent - falls back to "failure" when conclusion is null', () => {
+  const payload: GitHubCheckRunPayload = {
+    ...checkRunPayload,
+    check_run: { ...checkRunPayload.check_run, conclusion: null },
+  };
+  const event = normalizeCheckRunEvent(payload, checkRunPr, 'delivery-cr-4');
+  assert.equal(event.resource.check?.conclusion, 'failure');
+});
+
+// ---------------------------------------------------------------------------
+// normalizeStatusEvent
+// ---------------------------------------------------------------------------
+
+const statusPr = {
+  number: 64,
+  title: 'Add Go Hello Crafting',
+  description: 'PR description',
+  url: 'https://github.com/owner/repo/pull/64',
+  state: 'open',
+  author: 'alice',
+  labels: ['coworker'],
+  branch: 'ai/issue-63',
+  mergeTo: 'main',
+};
+
+const statusPayload: GitHubStatusPayload = {
+  id: 45124207566,
+  sha: '6fb88a3b274672e17a654f83ed94bfbd9ef27e39',
+  state: 'failure',
+  context: 'buildkite/auto-coder-test-repo',
+  description: 'Build #9 failed (0 seconds)',
+  target_url: 'https://buildkite.com/yuan-1/auto-coder-test-repo/builds/9',
+  repository: { full_name: 'owner/repo' },
+  sender: { id: 157537426, login: 'buildkite[bot]' },
+};
+
+test('normalizeStatusEvent - maps status fields to NormalizedEvent', () => {
+  const event = normalizeStatusEvent(statusPayload, statusPr, 'delivery-s-1');
+
+  assert.equal(event.provider, 'github');
+  assert.equal(event.type, 'pull_request');
+  assert.equal(event.action, 'check_failed');
+  assert.equal(event.resource.number, 64);
+  assert.equal(event.resource.branch, 'ai/issue-63');
+  assert.equal(event.resource.check?.name, 'buildkite/auto-coder-test-repo');
+  assert.equal(event.resource.check?.conclusion, 'failure');
+  assert.equal(
+    event.resource.check?.url,
+    'https://buildkite.com/yuan-1/auto-coder-test-repo/builds/9'
+  );
+  assert.equal(event.resource.check?.output?.summary, 'Build #9 failed (0 seconds)');
+  assert.equal(event.actor.username, 'buildkite[bot]');
+  assert.ok(event.id.startsWith('github:owner/repo:status:45124207566:'));
+});
+
+test('normalizeStatusEvent - propagates PR author and labels', () => {
+  const event = normalizeStatusEvent(statusPayload, statusPr, 'delivery-s-2');
+  assert.equal(event.resource.author, 'alice');
+  assert.deepEqual(event.resource.labels, ['coworker']);
+});
+
+test('normalizeStatusEvent - falls back to PR url when target_url is null', () => {
+  const payload: GitHubStatusPayload = { ...statusPayload, target_url: null };
+  const event = normalizeStatusEvent(payload, statusPr, 'delivery-s-3');
+  assert.equal(event.resource.check?.url, statusPr.url);
+});
+
+test('normalizeStatusEvent - no output when description is null', () => {
+  const payload: GitHubStatusPayload = { ...statusPayload, description: null };
+  const event = normalizeStatusEvent(payload, statusPr, 'delivery-s-4');
+  assert.equal(event.resource.check?.output, undefined);
 });

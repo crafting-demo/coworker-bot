@@ -431,3 +431,157 @@ test('Handlebars or helper - renders else block when both values are falsy', asy
   );
   assert.equal(result, 'no');
 });
+
+// ============================================================
+// execute() — SANDBOX_SYSTEM_URL progress link
+// ============================================================
+
+test('CommandExecutor execute() - no progress link when SANDBOX_SYSTEM_URL is not set', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  delete process.env['SANDBOX_SYSTEM_URL'];
+  try {
+    const executor = new CommandExecutor(baseConfig({ dryRun: true }));
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'issue #42', makeEvent(), reactor);
+    assert.ok(!comments[0]!.includes('View progress'));
+  } finally {
+    if (saved !== undefined) process.env['SANDBOX_SYSTEM_URL'] = saved;
+  }
+});
+
+test('CommandExecutor execute() - appends markdown progress link for github provider', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(baseConfig({ dryRun: true }));
+    const { reactor, comments } = makeReactor();
+    const event = makeEvent({ provider: 'github' });
+    await executor.execute('evt-1', 'issue #42', event, reactor);
+    // Initial comment should contain the progress link in markdown format
+    assert.ok(comments[0]!.includes('View progress'));
+    assert.ok(comments[0]!.includes('https://sandbox.example.com/ai-tasks/'));
+    // Markdown link format: [View progress](url)
+    assert.match(
+      comments[0]!,
+      /\[View progress\]\(https:\/\/sandbox\.example\.com\/ai-tasks\/.+\)/
+    );
+  } finally {
+    if (saved !== undefined) process.env['SANDBOX_SYSTEM_URL'] = saved;
+    else delete process.env['SANDBOX_SYSTEM_URL'];
+  }
+});
+
+test('CommandExecutor execute() - appends Slack-formatted progress link for slack provider', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(baseConfig({ dryRun: true }));
+    const { reactor, comments } = makeReactor();
+    const event = makeEvent({ provider: 'slack' });
+    await executor.execute('evt-1', 'message', event, reactor);
+    // Slack link format: <url|text>
+    assert.match(comments[0]!, /<https:\/\/sandbox\.example\.com\/ai-tasks\/.+\|View progress>/);
+  } finally {
+    if (saved !== undefined) process.env['SANDBOX_SYSTEM_URL'] = saved;
+    else delete process.env['SANDBOX_SYSTEM_URL'];
+  }
+});
+
+test('CommandExecutor execute() - progress link URL contains EVENT_SHORT_ID', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(baseConfig({ dryRun: true }));
+    const { reactor, comments } = makeReactor();
+    const event = makeEvent({
+      id: 'github:owner/repo:opened:42:abc123def',
+      provider: 'github',
+    });
+    await executor.execute('evt-1', 'display', event, reactor);
+    // Short ID for this event is github-owner-repo-42-<hash>
+    assert.match(comments[0]!, /ai-tasks\/github-owner-repo-42-[a-z0-9]{6}/);
+  } finally {
+    if (saved !== undefined) process.env['SANDBOX_SYSTEM_URL'] = saved;
+    else delete process.env['SANDBOX_SYSTEM_URL'];
+  }
+});
+
+test('CommandExecutor execute() - progress link is appended inline with a space (no newline)', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(baseConfig({ dryRun: true }));
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'issue #42', makeEvent(), reactor);
+    // Must be on a single line — no newline between display and link
+    assert.doesNotMatch(comments[0]!, /\n/);
+    assert.match(comments[0]!, /^Agent is working on issue #42 /);
+  } finally {
+    if (saved !== undefined) process.env['SANDBOX_SYSTEM_URL'] = saved;
+    else delete process.env['SANDBOX_SYSTEM_URL'];
+  }
+});
+
+test('CommandExecutor execute() - no trailing space in comment when SANDBOX_SYSTEM_URL is not set', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  delete process.env['SANDBOX_SYSTEM_URL'];
+  try {
+    const executor = new CommandExecutor(baseConfig({ dryRun: true }));
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'issue #42', makeEvent(), reactor);
+    assert.equal(comments[0], 'Agent is working on issue #42');
+  } finally {
+    if (saved !== undefined) process.env['SANDBOX_SYSTEM_URL'] = saved;
+  }
+});
+
+test('CommandExecutor execute() - appends Jira-formatted progress link for jira provider', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(baseConfig({ dryRun: true }));
+    const { reactor, comments } = makeReactor();
+    const event = makeEvent({ provider: 'jira' });
+    await executor.execute('evt-1', 'PROJ-42', event, reactor);
+    // Jira link format: [text|url]
+    assert.match(comments[0]!, /\[View progress\|https:\/\/sandbox\.example\.com\/ai-tasks\/.+\]/);
+  } finally {
+    if (saved !== undefined) process.env['SANDBOX_SYSTEM_URL'] = saved;
+    else delete process.env['SANDBOX_SYSTEM_URL'];
+  }
+});
+
+test('CommandExecutor execute() - appends markdown progress link for linear provider', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com';
+  try {
+    const executor = new CommandExecutor(baseConfig({ dryRun: true }));
+    const { reactor, comments } = makeReactor();
+    const event = makeEvent({ provider: 'linear' });
+    await executor.execute('evt-1', 'ENG-42', event, reactor);
+    // Linear uses markdown format like GitHub
+    assert.match(
+      comments[0]!,
+      /\[View progress\]\(https:\/\/sandbox\.example\.com\/ai-tasks\/.+\)/
+    );
+  } finally {
+    if (saved !== undefined) process.env['SANDBOX_SYSTEM_URL'] = saved;
+    else delete process.env['SANDBOX_SYSTEM_URL'];
+  }
+});
+
+test('CommandExecutor execute() - SANDBOX_SYSTEM_URL with trailing slash produces correct URL', async () => {
+  const saved = process.env['SANDBOX_SYSTEM_URL'];
+  process.env['SANDBOX_SYSTEM_URL'] = 'https://sandbox.example.com/';
+  try {
+    const executor = new CommandExecutor(baseConfig({ dryRun: true }));
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'display', makeEvent(), reactor);
+    // Should not produce a double slash in the URL
+    assert.doesNotMatch(comments[0]!, /ai-tasks\/\//);
+    assert.match(comments[0]!, /sandbox\.example\.com\/ai-tasks\//);
+  } finally {
+    if (saved !== undefined) process.env['SANDBOX_SYSTEM_URL'] = saved;
+    else delete process.env['SANDBOX_SYSTEM_URL'];
+  }
+});

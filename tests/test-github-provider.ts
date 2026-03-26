@@ -144,7 +144,7 @@ test('isBotAssignedInList - returns false for undefined assignees', () => {
 });
 
 // ---------------------------------------------------------------------------
-// GitHubComments.getAuthenticatedUser() — PAT mode auto-detection
+// Helpers
 // ---------------------------------------------------------------------------
 
 function mockFetch(response: { ok: boolean; status?: number; json?: () => Promise<unknown> }) {
@@ -161,6 +161,10 @@ function mockFetch(response: { ok: boolean; status?: number; json?: () => Promis
     global.fetch = orig;
   };
 }
+
+// ---------------------------------------------------------------------------
+// GitHubComments.getAuthenticatedUser() — PAT mode auto-detection
+// ---------------------------------------------------------------------------
 
 test('GitHubComments.getAuthenticatedUser - PAT mode: returns login from GET /user', async () => {
   const restore = mockFetch({
@@ -219,4 +223,311 @@ test('GitHubComments.getAccessibleRepositories - PAT mode: returns empty array o
   } finally {
     restore();
   }
+});
+
+// ---------------------------------------------------------------------------
+// GitHubComments.getPullRequestsForCommit()
+// ---------------------------------------------------------------------------
+
+test('GitHubComments.getPullRequestsForCommit - returns open PRs for the commit SHA', async () => {
+  const restore = mockFetch({
+    ok: true,
+    json: () =>
+      Promise.resolve([
+        { number: 64, state: 'open', head: { ref: 'ai/issue-63' }, base: { ref: 'main' } },
+        { number: 65, state: 'open', head: { ref: 'ai/issue-64' }, base: { ref: 'main' } },
+      ]),
+  });
+  try {
+    const comments = new GitHubComments(() => 'fake-token');
+    const prs = await comments.getPullRequestsForCommit('owner/repo', 'abc123');
+    assert.equal(prs.length, 2);
+    assert.equal(prs[0]!.number, 64);
+    assert.equal(prs[1]!.number, 65);
+  } finally {
+    restore();
+  }
+});
+
+test('GitHubComments.getPullRequestsForCommit - filters out closed/merged PRs', async () => {
+  const restore = mockFetch({
+    ok: true,
+    json: () =>
+      Promise.resolve([
+        { number: 64, state: 'open', head: { ref: 'ai/issue-63' }, base: { ref: 'main' } },
+        { number: 60, state: 'closed', head: { ref: 'old-branch' }, base: { ref: 'main' } },
+      ]),
+  });
+  try {
+    const comments = new GitHubComments(() => 'fake-token');
+    const prs = await comments.getPullRequestsForCommit('owner/repo', 'abc123');
+    assert.equal(prs.length, 1);
+    assert.equal(prs[0]!.number, 64);
+  } finally {
+    restore();
+  }
+});
+
+test('GitHubComments.getPullRequestsForCommit - returns empty array on API error', async () => {
+  const restore = mockFetch({ ok: false, status: 422 });
+  try {
+    const comments = new GitHubComments(() => 'fake-token');
+    const prs = await comments.getPullRequestsForCommit('owner/repo', 'abc123');
+    assert.deepEqual(prs, []);
+  } finally {
+    restore();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GitHubComments.getPullRequest() — extended fields
+// ---------------------------------------------------------------------------
+
+test('GitHubComments.getPullRequest - returns full PR details including title, labels, author', async () => {
+  const restore = mockFetch({
+    ok: true,
+    json: () =>
+      Promise.resolve({
+        title: 'Add feature X',
+        body: 'PR body',
+        html_url: 'https://github.com/owner/repo/pull/7',
+        state: 'open',
+        head: { ref: 'feature/x' },
+        base: { ref: 'main' },
+        user: { login: 'alice' },
+        labels: [{ name: 'bug' }, { name: 'coworker' }],
+      }),
+  });
+  try {
+    const comments = new GitHubComments(() => 'fake-token');
+    const pr = await comments.getPullRequest('owner/repo', 7);
+    assert.ok(pr !== null);
+    assert.equal(pr!.title, 'Add feature X');
+    assert.equal(pr!.description, 'PR body');
+    assert.equal(pr!.url, 'https://github.com/owner/repo/pull/7');
+    assert.equal(pr!.state, 'open');
+    assert.equal(pr!.branch, 'feature/x');
+    assert.equal(pr!.mergeTo, 'main');
+    assert.equal(pr!.author, 'alice');
+    assert.deepEqual(pr!.labels, ['bug', 'coworker']);
+  } finally {
+    restore();
+  }
+});
+
+test('GitHubComments.getPullRequest - handles missing body as empty string', async () => {
+  const restore = mockFetch({
+    ok: true,
+    json: () =>
+      Promise.resolve({
+        title: 'No body PR',
+        body: null,
+        html_url: 'https://github.com/owner/repo/pull/8',
+        state: 'open',
+        head: { ref: 'fix/something' },
+        base: { ref: 'main' },
+        user: { login: 'bob' },
+        labels: [],
+      }),
+  });
+  try {
+    const comments = new GitHubComments(() => 'fake-token');
+    const pr = await comments.getPullRequest('owner/repo', 8);
+    assert.equal(pr!.description, '');
+    assert.equal(pr!.author, 'bob');
+    assert.deepEqual(pr!.labels, undefined);
+  } finally {
+    restore();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// triggerLabels — shouldProcessEvent bypass
+// ---------------------------------------------------------------------------
+
+import { GitHubProvider } from '../src/watcher/providers/github/GitHubProvider.js';
+import type { NormalizedEvent, ProviderConfig } from '../src/watcher/types/index.js';
+
+function makeCheckFailedEvent(overrides: {
+  labels?: string[];
+  assignees?: Array<{ login: string }>;
+  state?: string;
+}) {
+  return {
+    id: 'github:owner/repo:status:1:del-1',
+    provider: 'github',
+    type: 'pull_request',
+    action: 'check_failed',
+    resource: {
+      number: 10,
+      title: 'PR',
+      description: '',
+      url: 'https://github.com/owner/repo/pull/10',
+      state: overrides.state ?? 'open',
+      repository: 'owner/repo',
+      branch: 'feature/x',
+      mergeTo: 'main',
+      labels: overrides.labels,
+      assignees: overrides.assignees,
+      check: {
+        name: 'buildkite/repo',
+        conclusion: 'failure',
+        url: 'https://buildkite.com/build/1',
+      },
+    },
+    actor: { username: 'buildkite[bot]', id: 1 },
+    metadata: { timestamp: new Date().toISOString() },
+    raw: {},
+  };
+}
+
+function makeIssueEvent(overrides: {
+  labels?: string[];
+  assignees?: Array<{ login: string }>;
+  comment?: { body: string; author: string };
+  state?: string;
+}) {
+  return {
+    id: 'github:owner/repo:opened:42:del-1',
+    provider: 'github',
+    type: 'issue',
+    action: 'opened',
+    resource: {
+      number: 42,
+      title: 'Issue',
+      description: '',
+      url: 'https://github.com/owner/repo/issues/42',
+      state: overrides.state ?? 'open',
+      repository: 'owner/repo',
+      labels: overrides.labels,
+      assignees: overrides.assignees,
+      comment: overrides.comment,
+    },
+    actor: { username: 'alice', id: 1 },
+    metadata: { timestamp: new Date().toISOString() },
+    raw: {},
+  };
+}
+
+// Access shouldProcessEvent via a subclass that exposes it for testing
+class TestableProvider extends GitHubProvider {
+  callShouldProcessEvent(
+    event: NormalizedEvent,
+    hasRecentComments?: boolean,
+    actions?: string[],
+    skipActions?: string[]
+  ): boolean {
+    return (this as any).shouldProcessEvent(event, hasRecentComments, actions, skipActions);
+  }
+}
+
+async function makeTestableProvider(options: Record<string, unknown>): Promise<TestableProvider> {
+  const orig = global.fetch;
+  global.fetch = async () =>
+    ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => null },
+      json: async () => ({ login: 'bot-user' }),
+    }) as unknown as Response;
+
+  const provider = new TestableProvider();
+  const config: ProviderConfig = {
+    enabled: true,
+    auth: { type: 'token', token: 'fake-token' },
+    options,
+  };
+  await provider.initialize(config);
+  global.fetch = orig;
+  return provider;
+}
+
+test('shouldProcessEvent - triggerLabels: issue with matching label bypasses assignment check', async () => {
+  const provider = await makeTestableProvider({
+    botUsername: 'bot-user',
+    triggerLabels: ['coworker'],
+  });
+  const event = makeIssueEvent({ labels: ['coworker'], assignees: [] });
+  assert.equal(provider.callShouldProcessEvent(event), true);
+});
+
+test('shouldProcessEvent - triggerLabels: case-insensitive label match', async () => {
+  const provider = await makeTestableProvider({
+    botUsername: 'bot-user',
+    triggerLabels: ['Coworker'],
+  });
+  const event = makeIssueEvent({ labels: ['coworker'], assignees: [] });
+  assert.equal(provider.callShouldProcessEvent(event), true);
+});
+
+test('shouldProcessEvent - triggerLabels: no matching label falls through to assignment check', async () => {
+  const provider = await makeTestableProvider({
+    botUsername: 'bot-user',
+    triggerLabels: ['coworker'],
+  });
+  const event = makeIssueEvent({ labels: ['bug'], assignees: [] });
+  // bot not assigned → should be skipped
+  assert.equal(provider.callShouldProcessEvent(event), false);
+});
+
+test('shouldProcessEvent - triggerLabels: no labels on issue falls through to assignment check', async () => {
+  const provider = await makeTestableProvider({
+    botUsername: 'bot-user',
+    triggerLabels: ['coworker'],
+  });
+  const event = makeIssueEvent({ labels: undefined, assignees: [] });
+  assert.equal(provider.callShouldProcessEvent(event), false);
+});
+
+test('shouldProcessEvent - triggerLabels not configured: original assignment check applies', async () => {
+  const provider = await makeTestableProvider({ botUsername: 'bot-user' });
+  const event = makeIssueEvent({ labels: ['coworker'], assignees: [] });
+  // label present but triggerLabels not configured → assignment check applies → bot not assigned → skip
+  assert.equal(provider.callShouldProcessEvent(event), false);
+});
+
+test('shouldProcessEvent - bot-authored comment skipped even when triggerLabels matches', async () => {
+  const provider = await makeTestableProvider({
+    botUsername: 'bot-user',
+    triggerLabels: ['coworker'],
+  });
+  const event = makeIssueEvent({
+    labels: ['coworker'],
+    assignees: [],
+    comment: { body: 'Agent is working on it', author: 'bot-user' },
+  });
+  // Trigger label matches, but bot wrote the comment → must still be skipped
+  assert.equal(provider.callShouldProcessEvent(event), false);
+});
+
+// ---------------------------------------------------------------------------
+// watchChecks — check_failed admission
+// ---------------------------------------------------------------------------
+
+test('shouldProcessEvent - watchChecks=true: check failure admitted', async () => {
+  const provider = await makeTestableProvider({ botUsername: 'bot-user', watchChecks: true });
+  const event = makeCheckFailedEvent({ labels: [], assignees: [] });
+  assert.equal(provider.callShouldProcessEvent(event), true);
+});
+
+test('shouldProcessEvent - watchChecks=false, no trigger label: check failure skipped', async () => {
+  const provider = await makeTestableProvider({ botUsername: 'bot-user' });
+  const event = makeCheckFailedEvent({ labels: [], assignees: [] });
+  assert.equal(provider.callShouldProcessEvent(event), false);
+});
+
+test('shouldProcessEvent - watchChecks=false, trigger label matches: check failure admitted', async () => {
+  const provider = await makeTestableProvider({
+    botUsername: 'bot-user',
+    triggerLabels: ['coworker'],
+  });
+  const event = makeCheckFailedEvent({ labels: ['coworker'], assignees: [] });
+  assert.equal(provider.callShouldProcessEvent(event), true);
+});
+
+test('shouldProcessEvent - check failure on closed PR is skipped', async () => {
+  const provider = await makeTestableProvider({ botUsername: 'bot-user', watchChecks: true });
+  const event = makeCheckFailedEvent({ state: 'closed' });
+  assert.equal(provider.callShouldProcessEvent(event), false);
 });
