@@ -223,8 +223,6 @@ export class SlackProvider extends BaseProvider {
       logger.warn('Failed to fetch Slack thread history', error);
     }
 
-    const channelName = await this.comments.getChannelName(event.channel);
-
     const reactor = new SlackReactor(this.comments, event.channel, threadTs, this.botUsernames);
 
     // Enrich event with actor info from Slack users.info (requires users:read.email scope for email)
@@ -239,8 +237,7 @@ export class SlackProvider extends BaseProvider {
       payload,
       history,
       actorInfo.email,
-      actorInfo.username,
-      channelName
+      actorInfo.username
     );
 
     await eventHandler(normalizedEvent, reactor);
