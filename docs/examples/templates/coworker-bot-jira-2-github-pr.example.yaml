@@ -153,7 +153,7 @@ workspaces:
         manifest:
           overlays:
             - file: .sandbox/setup.yaml
-            - file: .sandbox/proxy-jira.yaml
+            - file: .sandbox/proxy.yaml
 
     # -------------------------------------------------------------------------
     # watcher.yaml — injected on every sandbox start (overwrite: true).
@@ -194,6 +194,8 @@ workspaces:
               enabled: true
               commentTemplate: "Agent is working on {id}"
             providers:
+              github:
+                enabled: true
               jira:
                 enabled: true
     restriction:

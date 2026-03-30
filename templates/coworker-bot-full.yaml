@@ -267,7 +267,7 @@ workspaces:
         manifest:
           overlays:
             - file: .sandbox/setup.yaml
-            - file: .sandbox/proxy-full.yaml
+            - file: .sandbox/proxy.yaml
 
     # -----------------------------------------------------------------------
     # ADVANCED: watcher.yaml file injection (optional)
