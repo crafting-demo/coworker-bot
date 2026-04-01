@@ -363,6 +363,32 @@ export class GitHubComments {
     });
   }
 
+  async getUserEmail(username: string): Promise<string | undefined> {
+    try {
+      const response = await fetchWithTimeout(
+        `https://api.github.com/users/${encodeURIComponent(username)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.tokenGetter()}`,
+            Accept: 'application/vnd.github.v3+json',
+            'User-Agent': 'coworker-bot-watcher',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        logger.debug(`GitHub API: could not fetch user info for ${username}: ${response.status}`);
+        return undefined;
+      }
+
+      const data = (await response.json()) as { email?: string | null };
+      return data.email ?? undefined;
+    } catch (error) {
+      logger.debug(`GitHub API: error fetching user email for ${username}`, error);
+      return undefined;
+    }
+  }
+
   private getCommentsEndpoint(
     repository: string,
     resourceType: string,

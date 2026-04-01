@@ -290,7 +290,7 @@ workspaces:
               port: 3000
             commandExecutor:
               enabled: true
-              command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task --owner=$EMAIL"
+              command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task --owner=$EMAIL --wait=false"
               promptTemplateFile: ./config/event-prompt.hbs
               prompts:
                 jira: ./config/event-prompt-jira.hbs
