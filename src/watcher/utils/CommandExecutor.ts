@@ -219,6 +219,12 @@ export class CommandExecutor {
       }
     } catch (error) {
       logger.error('Command execution failed', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      try {
+        await reactor.postComment(`Agent failed to start: ${errorMessage}`);
+      } catch (commentError) {
+        logger.error('Failed to post error comment', commentError);
+      }
     }
   }
 
