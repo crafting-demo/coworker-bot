@@ -56,7 +56,7 @@ commandExecutor:
   # command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
 
   # The session will be created and owned by the user with email registered in crafting system.
-  command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task --owner=$EMAIL --wait=false"
+  command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task --owner=$EMAIL"
 
   # Prompt template configuration (optional)
   # There are three ways to configure prompt templates:
