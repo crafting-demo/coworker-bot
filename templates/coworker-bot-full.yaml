@@ -157,14 +157,15 @@ endpoints:
   # GitHub MCP internal endpoint
   # DELETE if not using GitHub.
   # type: INTERNAL — not publicly accessible, only reachable within the sandbox.
-  # Routed through mcp proxy which injects the Authorization header.
+  # Backend is github-mcp for per user oauth identity from crafting system.
+  # Backend is dev for proxy which injects the Authorization header from github app or PAT.
   # ---------------------------------------------------------------------------
   - name: github-mcp
     type: INTERNAL
     http:
       routes:
         - backend:
-            target: dev
+            target: github-mcp
             port: github
           path_prefix: /
       auth_proxy:
@@ -290,7 +291,7 @@ workspaces:
               port: 3000
             commandExecutor:
               enabled: true
-              command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
+              command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task --owner=$EMAIL --wait=false"
               promptTemplateFile: ./config/event-prompt.hbs
               prompts:
                 jira: ./config/event-prompt-jira.hbs
@@ -368,7 +369,7 @@ containers:
     env:
       - SLACK_MCP_PORT=8081
       - SLACK_MCP_HOST=0.0.0.0
-      - SLACK_MCP_ENABLED_TOOLS=attachment_get_data
+      - SLACK_MCP_ENABLED_TOOLS=attachment_get_data,conversations_add_message,conversations_history,conversations_replies
     ports:
       - name: slack
         port: 8081

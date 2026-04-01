@@ -53,7 +53,10 @@ commandExecutor:
   # which is rendered from the promptTemplateFile template.
   #
   # Use EVENT_SHORT_ID for command/session names (guaranteed unique per event)
-  command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
+  # command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
+
+  # The session will be created and owned by the user with email registered in crafting system.
+  command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task --owner=$EMAIL --wait=false"
 
   # Prompt template configuration (optional)
   # There are three ways to configure prompt templates:

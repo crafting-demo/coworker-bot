@@ -188,7 +188,10 @@ export class CommandExecutor {
       }
 
       // Post initial comment with user-friendly display string (always, even in dry-run)
-      logger.info(`Executing command for event ${eventId}`);
+      logger.info(`Executing command for event ${eventId}`, {
+        actor: event.actor.username,
+        email: event.actor.email ?? '(not resolved)',
+      });
       const shortId = this.generateShortId(event);
       let initialComment = `Agent is working on ${displayString}`;
       const sandboxSystemUrl = process.env.SANDBOX_SYSTEM_URL?.replace(/\/+$/, '');
@@ -228,6 +231,7 @@ export class CommandExecutor {
       EVENT_ID: event.id,
       EVENT_SAFE_ID: this.sanitizeForShell(event.id),
       EVENT_SHORT_ID: this.generateShortId(event),
+      ...(event.actor.email ? { EMAIL: event.actor.email } : {}),
     };
 
     if (!this.config.useStdin) {
@@ -266,6 +270,8 @@ export class CommandExecutor {
         EVENT_SAFE_ID: this.sanitizeForShell(event.id),
         // Short, clean ID for command/session names (e.g., "github-owner-repo-123")
         EVENT_SHORT_ID: this.generateShortId(event),
+        // Actor email (e.g., from Slack users.info)
+        ...(event.actor.email ? { EMAIL: event.actor.email } : {}),
       };
 
       // Add prompt if not using stdin
