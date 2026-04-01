@@ -2,26 +2,57 @@ import { withExponentialRetry } from '../../utils/retry.js';
 import { logger } from '../../utils/logger.js';
 import { fetchWithTimeout } from '../../utils/fetchWithTimeout.js';
 
+type AdfMark = { type: string; attrs?: Record<string, unknown> };
+type AdfNode = {
+  type: string;
+  text?: string;
+  marks?: AdfMark[];
+  attrs?: Record<string, unknown>;
+  content?: AdfNode[];
+};
+
 /**
- * Parse a plain-text string into ADF inline content nodes.
- * Tokens of the form [text|url] are emitted as text nodes with a link mark;
- * everything else is emitted as a plain text node.
+ * Parse a markdown inline string into ADF inline content nodes.
+ * Handles: **bold**, *italic*, `code`, [text](url), [text|url] (Jira wiki links).
  */
-function buildAdfInlineContent(text: string): unknown[] {
-  const nodes: unknown[] = [];
-  const linkPattern = /\[([^\]]+)\|([^\]]+)\]/g;
+function parseInline(text: string): AdfNode[] {
+  const nodes: AdfNode[] = [];
+  // Matches: **bold**, *italic*, `code`, [text](url), [text|url]
+  const pattern =
+    /\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)|\[([^\]]+)\|([^\]]+)\]/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = linkPattern.exec(text)) !== null) {
+  while ((match = pattern.exec(text)) !== null) {
     if (match.index > lastIndex) {
       nodes.push({ type: 'text', text: text.slice(lastIndex, match.index) });
     }
-    nodes.push({
-      type: 'text',
-      text: match[1],
-      marks: [{ type: 'link', attrs: { href: match[2] } }],
-    });
+
+    if (match[1] !== undefined) {
+      // **bold**
+      nodes.push({ type: 'text', text: match[1], marks: [{ type: 'strong' }] });
+    } else if (match[2] !== undefined) {
+      // *italic*
+      nodes.push({ type: 'text', text: match[2], marks: [{ type: 'em' }] });
+    } else if (match[3] !== undefined) {
+      // `code`
+      nodes.push({ type: 'text', text: match[3], marks: [{ type: 'code' }] });
+    } else if (match[4] !== undefined && match[5] !== undefined) {
+      // [text](url)
+      nodes.push({
+        type: 'text',
+        text: match[4],
+        marks: [{ type: 'link', attrs: { href: match[5] } }],
+      });
+    } else if (match[6] !== undefined && match[7] !== undefined) {
+      // [text|url] Jira wiki link
+      nodes.push({
+        type: 'text',
+        text: match[6],
+        marks: [{ type: 'link', attrs: { href: match[7] } }],
+      });
+    }
+
     lastIndex = match.index + match[0].length;
   }
 
@@ -30,6 +61,95 @@ function buildAdfInlineContent(text: string): unknown[] {
   }
 
   return nodes;
+}
+
+/**
+ * Convert a markdown string to an Atlassian Document Format (ADF) document.
+ * Handles: paragraphs, headings, bullet lists, code blocks, and inline formatting.
+ */
+function markdownToAdf(markdown: string): unknown {
+  const lines = markdown.split('\n');
+  const content: AdfNode[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i] ?? '';
+
+    // Fenced code block — only treat as code if a closing fence is found
+    if (line.startsWith('```')) {
+      const closingIndex = lines.findIndex((l, idx) => idx > i && l.startsWith('```'));
+      if (closingIndex !== -1) {
+        const lang = line.slice(3).trim();
+        const codeLines = lines.slice(i + 1, closingIndex);
+        const codeText = codeLines.join('\n');
+        if (codeText) {
+          content.push({
+            type: 'codeBlock',
+            attrs: lang ? { language: lang } : {},
+            content: [{ type: 'text', text: codeText }],
+          });
+        }
+        i = closingIndex + 1;
+      } else {
+        // Unclosed fence — treat the ``` line as plain text to avoid swallowing remaining content
+        content.push({ type: 'paragraph', content: parseInline(line) });
+        i++;
+      }
+      continue;
+    }
+
+    // Heading
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      content.push({
+        type: 'heading',
+        attrs: { level: headingMatch[1]!.length },
+        content: parseInline(headingMatch[2]!),
+      });
+      i++;
+      continue;
+    }
+
+    // Bullet list: collect consecutive list items
+    if (line.match(/^[-*]\s+/)) {
+      const items: AdfNode[] = [];
+      while (i < lines.length && (lines[i] ?? '').match(/^[-*]\s+/)) {
+        const itemText = (lines[i] ?? '').replace(/^[-*]\s+/, '');
+        items.push({
+          type: 'listItem',
+          content: [{ type: 'paragraph', content: parseInline(itemText) }],
+        });
+        i++;
+      }
+      content.push({ type: 'bulletList', content: items });
+      continue;
+    }
+
+    // Empty line — skip
+    if (line.trim() === '') {
+      i++;
+      continue;
+    }
+
+    // Paragraph: accumulate consecutive plain lines
+    const paraLines: string[] = [];
+    while (i < lines.length) {
+      const l = lines[i] ?? '';
+      if (l.trim() === '' || l.startsWith('```') || l.match(/^[-*]\s+/) || l.match(/^#{1,6}\s+/))
+        break;
+      paraLines.push(l);
+      i++;
+    }
+    if (paraLines.length > 0) {
+      content.push({ type: 'paragraph', content: parseInline(paraLines.join('\n')) });
+    }
+  }
+
+  if (content.length === 0) {
+    content.push({ type: 'paragraph', content: [] });
+  }
+
+  return { version: 1, type: 'doc', content };
 }
 
 interface JiraCommentItem {
@@ -116,17 +236,8 @@ export class JiraComments {
 
     const executePost = async () => {
       // Jira REST API v3 requires Atlassian Document Format (ADF) for comment bodies.
-      // Parse [text|url] link tokens in the body and emit proper ADF inline link nodes.
-      const adfBody = {
-        version: 1,
-        type: 'doc',
-        content: [
-          {
-            type: 'paragraph',
-            content: buildAdfInlineContent(body),
-          },
-        ],
-      };
+      // Convert the markdown body to ADF so formatting is preserved.
+      const adfBody = markdownToAdf(body);
 
       const startTime = Date.now();
       const response = await fetchWithTimeout(url, {
