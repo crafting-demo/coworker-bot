@@ -111,7 +111,7 @@ providers:
     #
     # Mode 2 (PAT / bot user): provide an auth block with the PAT:
     # auth:
-    #   tokenEnv: GITHUB_TOKEN   # env var holding the Personal Access Token
+    #   tokenEnv: GITHUB_PAT   # env var holding the Personal Access Token (GITHUB_PAT or GITHUB_PERSONAL_ACCESS_TOKEN)
     # In PAT mode, botUsername is auto-detected via GET /user if not set. Repositories must be
     # configured explicitly — GET /installation/repositories only works for GitHub App tokens.
 
