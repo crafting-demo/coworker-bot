@@ -37,8 +37,8 @@ Event handlers receive `(event: NormalizedEvent, reactor: Reactor)` — provider
 
 ## Adding New Tests
 
-1. Place test files in this directory named `test-*.ts`
-2. Use relative imports with `.js` extensions: `import { Foo } from '../src/watcher/...Foo.js'`
+1. Place test files under `tests/providers/<provider>/` or `tests/utils/` (e.g. `tests/providers/github/normalize.ts`)
+2. Use relative imports with `.js` extensions: provider tests use `../../../src/watcher/...Foo.js`; utils tests use `../../src/watcher/...Foo.js`
 3. Use `node:test` and `node:assert/strict` — no external test framework needed
 4. Mock external dependencies (HTTP clients, API classes) inline using `Partial<InstanceType<typeof SomeClass>>`
 5. Run with `npm test`

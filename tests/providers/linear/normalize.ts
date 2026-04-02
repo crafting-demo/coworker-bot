@@ -4,7 +4,7 @@ import {
   normalizeWebhookEvent,
   normalizePolledEvent,
   normalizeCommentEvent,
-} from '../src/watcher/providers/linear/LinearNormalizer.js';
+} from '../../../src/watcher/providers/linear/LinearNormalizer.js';
 
 // Fixtures — structures match real Linear webhook payloads as documented at
 // https://linear.app/developers/webhooks#webhook-payload

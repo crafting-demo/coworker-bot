@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { JiraComments } from '../src/watcher/providers/jira/JiraComments.js';
+import { JiraComments } from '../../../src/watcher/providers/jira/JiraComments.js';
 
 // ---------------------------------------------------------------------------
 // Helpers

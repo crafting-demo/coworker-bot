@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { withExponentialRetry } from '../src/watcher/utils/retry.js';
+import { withExponentialRetry } from '../../src/watcher/utils/retry.js';
 
 test('withExponentialRetry - succeeds on first try', async () => {
   let callCount = 0;

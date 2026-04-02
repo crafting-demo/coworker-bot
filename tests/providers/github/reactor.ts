@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GitHubReactor } from '../src/watcher/providers/github/GitHubReactor.js';
+import { GitHubReactor } from '../../../src/watcher/providers/github/GitHubReactor.js';
 import type {
   GitHubComments,
   CommentInfo,
-} from '../src/watcher/providers/github/GitHubComments.js';
+} from '../../../src/watcher/providers/github/GitHubComments.js';
 
 function makeReactor(
   opts: {

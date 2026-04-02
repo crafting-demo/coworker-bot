@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WatcherEventEmitter } from '../src/watcher/core/EventEmitter.js';
+import { WatcherEventEmitter } from '../../src/watcher/core/EventEmitter.js';
 
 test('WatcherEventEmitter - emits "event" with provider name and payload', () => {
   const emitter = new WatcherEventEmitter();

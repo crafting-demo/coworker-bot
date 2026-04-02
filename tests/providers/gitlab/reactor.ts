@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GitLabReactor } from '../src/watcher/providers/gitlab/GitLabReactor.js';
-import type { GitLabComments } from '../src/watcher/providers/gitlab/GitLabComments.js';
+import { GitLabReactor } from '../../../src/watcher/providers/gitlab/GitLabReactor.js';
+import type { GitLabComments } from '../../../src/watcher/providers/gitlab/GitLabComments.js';
 
 interface MockComment {
   id: number;

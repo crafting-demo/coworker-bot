@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CommandExecutor } from '../src/watcher/utils/CommandExecutor.js';
+import { CommandExecutor } from '../../src/watcher/utils/CommandExecutor.js';
 import type {
   Reactor,
   NormalizedEvent,
   CommandExecutorConfig,
-} from '../src/watcher/types/index.js';
+} from '../../src/watcher/types/index.js';
 
 // --- Fixtures ---
 

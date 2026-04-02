@@ -16,8 +16,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isBotMentionedInText, isBotAssignedInList } from '../src/watcher/utils/eventFilter.js';
-import { GitHubComments } from '../src/watcher/providers/github/GitHubComments.js';
+import {
+  isBotMentionedInText,
+  isBotAssignedInList,
+} from '../../../src/watcher/utils/eventFilter.js';
+import { GitHubComments } from '../../../src/watcher/providers/github/GitHubComments.js';
 
 // ---------------------------------------------------------------------------
 // isBotMentionedInText — PAT mode (plain username, no "[bot]" suffix)
@@ -345,8 +348,8 @@ test('GitHubComments.getPullRequest - handles missing body as empty string', asy
 // triggerLabels — shouldProcessEvent bypass
 // ---------------------------------------------------------------------------
 
-import { GitHubProvider } from '../src/watcher/providers/github/GitHubProvider.js';
-import type { NormalizedEvent, ProviderConfig } from '../src/watcher/types/index.js';
+import { GitHubProvider } from '../../../src/watcher/providers/github/GitHubProvider.js';
+import type { NormalizedEvent, ProviderConfig } from '../../../src/watcher/types/index.js';
 
 function makeCheckFailedEvent(overrides: {
   labels?: string[];

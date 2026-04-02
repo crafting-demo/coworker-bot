@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { JiraProvider } from '../src/watcher/providers/jira/JiraProvider.js';
-import type { JiraWebhookPayload } from '../src/watcher/providers/jira/JiraNormalizer.js';
+import { JiraProvider } from '../../../src/watcher/providers/jira/JiraProvider.js';
+import type { JiraWebhookPayload } from '../../../src/watcher/providers/jira/JiraNormalizer.js';
 
 // ---------------------------------------------------------------------------
 // Helpers

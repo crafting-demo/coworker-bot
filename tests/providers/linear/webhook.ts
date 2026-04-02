@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { LinearWebhook } from '../src/watcher/providers/linear/LinearWebhook.js';
+import { LinearWebhook } from '../../../src/watcher/providers/linear/LinearWebhook.js';
 
 // Linear uses raw HMAC SHA-256 hex — no prefix like GitHub's "sha256="
 function makeSignature(secret: string, body: string | Buffer): string {

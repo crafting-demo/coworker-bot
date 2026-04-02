@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   normalizeWebhookEvent,
   normalizePolledEvent,
-} from '../src/watcher/providers/gitlab/GitLabNormalizer.js';
+} from '../../../src/watcher/providers/gitlab/GitLabNormalizer.js';
 
 // Fixtures — structures match real GitLab webhook payloads as documented at
 // https://docs.gitlab.com/user/project/integrations/webhook_events/

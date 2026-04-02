@@ -5,7 +5,7 @@ import {
   normalizeWebhookIssueEvent,
   normalizeWebhookCommentEvent,
   normalizePolledIssue,
-} from '../src/watcher/providers/jira/JiraNormalizer.js';
+} from '../../../src/watcher/providers/jira/JiraNormalizer.js';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 //

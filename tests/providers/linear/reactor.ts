@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { LinearReactor } from '../src/watcher/providers/linear/LinearReactor.js';
-import type { LinearComments } from '../src/watcher/providers/linear/LinearComments.js';
+import { LinearReactor } from '../../../src/watcher/providers/linear/LinearReactor.js';
+import type { LinearComments } from '../../../src/watcher/providers/linear/LinearComments.js';
 
 interface MockLinearComment {
   id: string;

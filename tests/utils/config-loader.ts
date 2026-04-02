@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { ConfigLoader } from '../src/watcher/core/ConfigLoader.js';
-import { ConfigError } from '../src/watcher/utils/errors.js';
+import { ConfigLoader } from '../../src/watcher/core/ConfigLoader.js';
+import { ConfigError } from '../../src/watcher/utils/errors.js';
 
 const tempDir = join(tmpdir(), `coworker-bot-config-tests-${Date.now()}`);
 mkdirSync(tempDir, { recursive: true });

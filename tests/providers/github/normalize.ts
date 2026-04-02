@@ -7,7 +7,7 @@ import {
   normalizeStatusEvent,
   type GitHubCheckRunPayload,
   type GitHubStatusPayload,
-} from '../src/watcher/providers/github/GitHubNormalizer.js';
+} from '../../../src/watcher/providers/github/GitHubNormalizer.js';
 
 // Fixtures — structures match the real GitHub webhook payloads as documented at
 // https://docs.github.com/en/webhooks/webhook-events-and-payloads

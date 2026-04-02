@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { SlackWebhook } from '../src/watcher/providers/slack/SlackWebhook.js';
+import { SlackWebhook } from '../../../src/watcher/providers/slack/SlackWebhook.js';
 
 // Slack uses: v0=HMAC-SHA256("v0:<timestamp>:<body>")
 function makeSlackSignature(secret: string, timestamp: string, body: string): string {

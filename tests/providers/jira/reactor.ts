@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { JiraReactor } from '../src/watcher/providers/jira/JiraReactor.js';
-import type { JiraComments } from '../src/watcher/providers/jira/JiraComments.js';
+import { JiraReactor } from '../../../src/watcher/providers/jira/JiraReactor.js';
+import type { JiraComments } from '../../../src/watcher/providers/jira/JiraComments.js';
 
 // Jira REST API v3 GET /issue/{key}/comment returns a "values" array.
 // Each entry has: id, author { accountId, displayName }, body (ADF or string), created.

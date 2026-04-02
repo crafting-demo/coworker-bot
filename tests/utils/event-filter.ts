@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isBotMentionedInText, isBotAssignedInList } from '../src/watcher/utils/eventFilter.js';
+import { isBotMentionedInText, isBotAssignedInList } from '../../src/watcher/utils/eventFilter.js';
 
 // --- isBotMentionedInText ---
 

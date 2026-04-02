@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { GitHubWebhook } from '../src/watcher/providers/github/GitHubWebhook.js';
+import { GitHubWebhook } from '../../../src/watcher/providers/github/GitHubWebhook.js';
 
 function makeSignature(secret: string, body: string | Buffer): string {
   const hmac = createHmac('sha256', secret);

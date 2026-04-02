@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GitLabWebhook } from '../src/watcher/providers/gitlab/GitLabWebhook.js';
+import { GitLabWebhook } from '../../../src/watcher/providers/gitlab/GitLabWebhook.js';
 
 function baseHeaders(): Record<string, string> {
   return { 'x-gitlab-event': 'Issue Hook' };

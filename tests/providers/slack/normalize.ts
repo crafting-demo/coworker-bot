@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   normalizeWebhookEvent,
   normalizePolledMention,
-} from '../src/watcher/providers/slack/SlackNormalizer.js';
+} from '../../../src/watcher/providers/slack/SlackNormalizer.js';
 
 // Fixtures — structures match real Slack Events API payloads as documented at
 // https://docs.slack.dev/reference/events/app_mention

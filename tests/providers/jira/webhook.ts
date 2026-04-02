@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { JiraWebhook } from '../src/watcher/providers/jira/JiraWebhook.js';
+import { JiraWebhook } from '../../../src/watcher/providers/jira/JiraWebhook.js';
 
 // Jira Cloud signs webhook payloads with HMAC-SHA256 in the X-Hub-Signature header:
 //   X-Hub-Signature: sha256=<hex>

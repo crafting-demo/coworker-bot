@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SlackReactor } from '../src/watcher/providers/slack/SlackReactor.js';
-import type { SlackComments } from '../src/watcher/providers/slack/SlackComments.js';
+import { SlackReactor } from '../../../src/watcher/providers/slack/SlackReactor.js';
+import type { SlackComments } from '../../../src/watcher/providers/slack/SlackComments.js';
 
 function makeReactor(
   opts: {

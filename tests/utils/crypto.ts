@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { computeHmacSignature, verifyHmacSignature } from '../src/watcher/utils/crypto.js';
+import { computeHmacSignature, verifyHmacSignature } from '../../src/watcher/utils/crypto.js';
 
 test('computeHmacSignature - produces correct sha256 HMAC for string payload', () => {
   const secret = 'test-secret';
