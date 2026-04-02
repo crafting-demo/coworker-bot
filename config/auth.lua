@@ -68,6 +68,10 @@ end
 -- Injects a GitHub Bearer token from env or fetched via git-credentials (when GitHub App is enabled), with caching.
 -- shared_dict_name: name of the lua_shared_dict defined in nginx.conf
 function _M.inject_github_token(shared_dict_name)
+    if ngx.req.get_headers()["Authorization"] then
+        return
+    end
+
     local cache = ngx.shared[shared_dict_name]
     local token = cache:get("token")
 

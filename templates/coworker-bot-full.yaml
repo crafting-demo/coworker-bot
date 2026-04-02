@@ -290,7 +290,7 @@ workspaces:
               port: 3000
             commandExecutor:
               enabled: true
-              command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task"
+              command: "cs llm session run --approval=auto --name=$EVENT_SHORT_ID --task --owner=$EMAIL --wait=false"
               promptTemplateFile: ./config/event-prompt.hbs
               prompts:
                 jira: ./config/event-prompt-jira.hbs
@@ -368,7 +368,7 @@ containers:
     env:
       - SLACK_MCP_PORT=8081
       - SLACK_MCP_HOST=0.0.0.0
-      - SLACK_MCP_ENABLED_TOOLS=attachment_get_data
+      - SLACK_MCP_ENABLED_TOOLS=attachment_get_data,conversations_add_message,conversations_history,conversations_replies
     ports:
       - name: slack
         port: 8081

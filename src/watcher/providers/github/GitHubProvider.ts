@@ -309,6 +309,12 @@ export class GitHubProvider extends BaseProvider {
       return; // Event filtered out (already logged in shouldProcessEvent)
     }
 
+    // Enrich actor with email
+    const actorEmail = await this.comments.getUserEmail(normalizedEvent.actor.username);
+    if (actorEmail) {
+      normalizedEvent.actor.email = actorEmail;
+    }
+
     // Enrich PR events with branch info when missing (issue_comment events on PRs
     // only include the issue payload, which lacks head.ref / base.ref)
     if (normalizedEvent.type === 'pull_request' && !normalizedEvent.resource.branch) {
@@ -686,6 +692,12 @@ export class GitHubProvider extends BaseProvider {
         )
       ) {
         continue; // Event filtered out (already logged in shouldProcessEvent)
+      }
+
+      // Enrich actor with email
+      const actorEmail = await this.comments.getUserEmail(normalizedEvent.actor.username);
+      if (actorEmail) {
+        normalizedEvent.actor.email = actorEmail;
       }
 
       logger.debug(`Creating reactor for ${resourceType} #${resourceNumber} in ${repository}`);
