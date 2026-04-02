@@ -47,6 +47,12 @@ commandExecutor:
   #     - Comment on PR #123: "github-owner-repo-123-ghi789"
   #     - Linear issue: "linear-ENG-456-jkl012"
   #   Hash suffix (6 chars from event ID) ensures uniqueness for all events
+  # - EMAIL: Email address of the actor who triggered the event (when available from the provider)
+  #   Sources by provider:
+  #     - GitHub: resolved via the GitHub API from the actor's username
+  #     - Slack: resolved via users.info API from the message sender
+  #     - Jira: from the triggering user's emailAddress field in the webhook payload
+  #     - Linear: from the actor.email field in the webhook payload, or creator.email when polled
   # - PROMPT: Rendered prompt with all event details (if promptTemplateFile provided and useStdin=false)
   #
   # All event context (provider, type, action, title, URL, etc.) is included in the PROMPT
