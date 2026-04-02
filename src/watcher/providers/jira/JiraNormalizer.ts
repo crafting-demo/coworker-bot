@@ -170,16 +170,19 @@ export function normalizeWebhookIssueEvent(
 
   const actor = payload.user ?? fields.reporter;
 
+  const actorObj: NormalizedEvent['actor'] = {
+    username: actor?.displayName ?? 'unknown',
+    id: actor?.accountId ?? 'unknown',
+  };
+  if (actor?.emailAddress) actorObj.email = actor.emailAddress;
+
   return {
     id: eventId,
     provider: 'jira',
     type: 'issue',
     action: payload.issue_event_type_name ?? payload.webhookEvent,
     resource,
-    actor: {
-      username: actor?.displayName ?? 'unknown',
-      id: actor?.accountId ?? 'unknown',
-    },
+    actor: actorObj,
     metadata: {
       timestamp: new Date(payload.timestamp).toISOString(),
       deliveryId,
@@ -220,16 +223,19 @@ export function normalizeWebhookCommentEvent(
 
   if (assignees) resource.assignees = assignees;
 
+  const actorObj: NormalizedEvent['actor'] = {
+    username: comment.author.displayName,
+    id: comment.author.accountId,
+  };
+  if (comment.author.emailAddress) actorObj.email = comment.author.emailAddress;
+
   return {
     id: eventId,
     provider: 'jira',
     type: 'issue',
     action: 'comment',
     resource,
-    actor: {
-      username: comment.author.displayName,
-      id: comment.author.accountId,
-    },
+    actor: actorObj,
     metadata: {
       timestamp: new Date(payload.timestamp).toISOString(),
       deliveryId,
@@ -261,16 +267,19 @@ export function normalizePolledIssue(issue: JiraIssue): NormalizedEvent {
   if (assignees) resource.assignees = assignees;
   if (labels) resource.labels = labels;
 
+  const actorObj: NormalizedEvent['actor'] = {
+    username: fields.reporter?.displayName ?? 'unknown',
+    id: fields.reporter?.accountId ?? 'unknown',
+  };
+  if (fields.reporter?.emailAddress) actorObj.email = fields.reporter.emailAddress;
+
   return {
     id: eventId,
     provider: 'jira',
     type: 'issue',
     action: 'poll',
     resource,
-    actor: {
-      username: fields.reporter?.displayName ?? 'unknown',
-      id: fields.reporter?.accountId ?? 'unknown',
-    },
+    actor: actorObj,
     metadata: {
       timestamp: new Date().toISOString(),
       polled: true,

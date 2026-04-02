@@ -104,16 +104,19 @@ export function normalizeWebhookEvent(
   if (assignees) resource.assignees = assignees;
   if (labels && labels.length > 0) resource.labels = labels;
 
+  const actorObj: NormalizedEvent['actor'] = {
+    username: data.creator?.name || 'unknown',
+    id: data.id,
+  };
+  if (payload.actor?.email) actorObj.email = payload.actor.email;
+
   return {
     id: eventId,
     provider: 'linear',
     type: 'issue',
     action: payload.action,
     resource,
-    actor: {
-      username: data.creator?.name || 'unknown',
-      id: data.id,
-    },
+    actor: actorObj,
     metadata: {
       timestamp: payload.createdAt,
     },
@@ -148,16 +151,19 @@ export function normalizeCommentEvent(
   if (assignees) resource.assignees = assignees;
   if (labels && labels.length > 0) resource.labels = labels;
 
+  const actorObj: NormalizedEvent['actor'] = {
+    username: payload.actor?.name || data.user?.name || 'unknown',
+    id: data.id,
+  };
+  if (payload.actor?.email) actorObj.email = payload.actor.email;
+
   return {
     id: eventId,
     provider: 'linear',
     type: 'issue',
     action: 'comment',
     resource,
-    actor: {
-      username: payload.actor?.name || data.user?.name || 'unknown',
-      id: data.id,
-    },
+    actor: actorObj,
     metadata: {
       timestamp: payload.createdAt,
     },
