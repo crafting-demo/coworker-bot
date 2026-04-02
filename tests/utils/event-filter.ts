@@ -146,3 +146,34 @@ test('isBotAssignedInList - works with name field (Linear style)', () => {
     true
   );
 });
+
+// --- GitHub App mode: "[bot]" suffix handling ---
+
+test('isBotMentionedInText - GitHub App: matches full @mention including [bot] suffix', () => {
+  assert.equal(isBotMentionedInText('@my-app[bot] fix this', ['my-app[bot]']), true);
+});
+
+test('isBotMentionedInText - GitHub App: matches bare @mention without [bot] suffix', () => {
+  // Users commonly type @my-app instead of @my-app[bot] — both must match
+  assert.equal(isBotMentionedInText('@my-app fix this', ['my-app[bot]']), true);
+});
+
+test('isBotMentionedInText - GitHub App: bare match is case-insensitive', () => {
+  assert.equal(isBotMentionedInText('@My-App please do it', ['my-app[bot]']), true);
+});
+
+test('isBotMentionedInText - GitHub App: no match when different bot mentioned', () => {
+  assert.equal(isBotMentionedInText('@other-app[bot] fix this', ['my-app[bot]']), false);
+});
+
+test('isBotMentionedInText - GitHub App: word-boundary prevents partial match on bare name', () => {
+  assert.equal(isBotMentionedInText('@my-app-extra fix this', ['my-app[bot]']), false);
+});
+
+test('isBotAssignedInList - GitHub App: matches "[bot]" username in assignees', () => {
+  const assignees = [{ login: 'my-app[bot]' }];
+  assert.equal(
+    isBotAssignedInList(assignees, ['my-app[bot]'], (a) => (a as { login: string }).login),
+    true
+  );
+});

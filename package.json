@@ -10,6 +10,7 @@
     "start": "tsx src/index.ts",
     "type-check": "tsc --noEmit",
     "test": "node --import tsx/esm --test tests/providers/*/*.ts tests/utils/*.ts",
+    "test:integration": "node --import tsx/esm --test tests/providers/*/integration.ts",
     "lint": "eslint src/ tests/",
     "lint:fix": "eslint src/ tests/ --fix",
     "format": "prettier --write .",
