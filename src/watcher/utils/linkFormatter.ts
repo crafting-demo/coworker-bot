@@ -71,8 +71,11 @@ export function formatResourceLink(event: NormalizedEvent): string {
     return formatLink(checkText, resource.check.url, provider);
   }
 
-  // Standard format for GitHub/GitLab/Linear (e.g., "owner/repo#123")
-  const displayText = `${resource.repository}#${resource.number}`;
+  // Linear uses "TEAM-123" format; GitHub/GitLab use "owner/repo#123"
+  const displayText =
+    provider === 'linear'
+      ? `${resource.repository}-${resource.number}`
+      : `${resource.repository}#${resource.number}`;
 
   // If URL is not available, return plain text
   if (!resource.url || resource.url.trim() === '') {

@@ -87,8 +87,8 @@ export class LinearComments {
     return comments;
   }
 
-  async getAuthenticatedUser(): Promise<string | null> {
-    const query = `{ viewer { name } }`;
+  async getAuthenticatedUser(): Promise<string[] | null> {
+    const query = `{ viewer { name displayName } }`;
     try {
       const response = await fetchWithTimeout(this.apiUrl, {
         method: 'POST',
@@ -114,7 +114,13 @@ export class LinearComments {
         return null;
       }
 
-      return data.data?.viewer?.name ?? null;
+      const viewer = data.data?.viewer;
+      if (!viewer?.name) return null;
+      const names: string[] = [viewer.name];
+      if (viewer.displayName && viewer.displayName !== viewer.name) {
+        names.push(viewer.displayName);
+      }
+      return names;
     } catch (error) {
       logger.error('Error fetching authenticated Linear user', error);
       return null;

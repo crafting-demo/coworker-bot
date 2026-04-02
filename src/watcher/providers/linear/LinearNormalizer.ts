@@ -24,7 +24,7 @@ export interface LinearCommentPayload {
       title: string;
       description?: string;
       url: string;
-      state: { name: string; type?: string };
+      state?: { name: string; type?: string };
       team: { key: string; name: string };
       assignee?: { id?: string; name: string };
       labels?: { nodes: Array<{ id?: string; name: string }> };
@@ -88,7 +88,7 @@ export function normalizeWebhookEvent(
   const eventId = `linear:${data.team.key}:${payload.action}:${data.id}:${webhookId}`;
 
   const resource: NormalizedEvent['resource'] = {
-    number: data.number,
+    number: data.number ?? parseInt(data.identifier.split('-').pop()!, 10),
     title: data.title,
     description: data.description || '',
     url: data.url,
@@ -133,11 +133,11 @@ export function normalizeCommentEvent(
   const eventId = `linear:${issue.team.key}:comment:${data.id}:${webhookId}`;
 
   const resource: NormalizedEvent['resource'] = {
-    number: issue.number,
+    number: issue.number ?? parseInt(issue.identifier.split('-').pop()!, 10),
     title: issue.title,
     description: issue.description || '',
     url: issue.url,
-    state: issue.state.name,
+    state: issue.state?.name ?? 'unknown',
     repository: issue.team.key,
     comment: {
       body: data.body,
@@ -176,7 +176,7 @@ export function normalizePolledEvent(item: any): NormalizedEvent {
   const eventId = `linear:${item.team}:poll:${data.number}:${Date.now()}`;
 
   const resource: NormalizedEvent['resource'] = {
-    number: data.number,
+    number: data.number ?? parseInt(data.identifier.split('-').pop()!, 10),
     title: data.title,
     description: data.description || '',
     url: data.url,

@@ -80,8 +80,8 @@ export class LinearProvider extends BaseProvider {
     } else if (this.comments) {
       const detected = await this.comments.getAuthenticatedUser();
       if (detected) {
-        this.botUsernames = [detected];
-        logger.info(`Linear bot username auto-detected from API key: ${detected}`);
+        this.botUsernames = detected;
+        logger.info(`Linear bot usernames auto-detected from API key: ${detected.join(', ')}`);
       } else {
         logger.warn(
           'Linear: botUsername not configured and auto-detection failed - deduplication will not work'
@@ -223,14 +223,19 @@ export class LinearProvider extends BaseProvider {
       logger.error(`Skipping Linear issue ${payload.data.identifier} - botUsername not configured`);
       return;
     }
-    if (
-      !isBotAssignedInList(
-        normalizedEvent.resource.assignees,
-        this.botUsernames,
-        (a) => (a as any).name
-      )
-    ) {
-      logger.debug(`Skipping Linear issue ${payload.data.identifier} - bot not assigned`);
+    const botAssigned = isBotAssignedInList(
+      normalizedEvent.resource.assignees,
+      this.botUsernames,
+      (a) => (a as any).name
+    );
+    const botMentioned = isBotMentionedInText(
+      normalizedEvent.resource.description,
+      this.botUsernames
+    );
+    if (!botAssigned && !botMentioned) {
+      logger.debug(
+        `Skipping Linear issue ${payload.data.identifier} - bot not assigned or mentioned`
+      );
       return;
     }
 

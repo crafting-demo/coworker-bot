@@ -18,8 +18,8 @@ import {
 // connection structure, matching the GraphQL API shape.
 //
 // actor (outer) is the user who triggered the event (may differ from data.creator
-// for update events). The normalizer currently derives actor from data.creator —
-// a future improvement could use the outer actor for update events.
+// for update events). The normalizer uses data.creator as the actor — the issue
+// owner — so that EMAIL always resolves to the person who owns the work.
 
 const issueCreatedPayload = {
   action: 'create',
@@ -106,6 +106,7 @@ test('normalizeWebhookEvent - issue create event', () => {
   // url is used by {{resourceLink}} in the prompt template
   assert.equal(event.resource.url, 'https://linear.app/org/issue/ENG-42');
   assert.equal(event.resource.author, 'Alice');
+  // actor is the issue creator (data.creator), not the webhook trigger actor
   assert.equal(event.actor.username, 'Alice');
   assert.equal(event.actor.id, 'issue-abc');
   assert.equal(event.id, 'linear:ENG:create:issue-abc:webhook-id-1');
