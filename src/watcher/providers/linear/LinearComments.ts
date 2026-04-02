@@ -14,15 +14,21 @@ interface LinearComment {
   createdAt: string;
 }
 
+export interface LinearIssueWithComments {
+  description: string | null;
+  comments: LinearComment[];
+}
+
 export class LinearComments {
   private readonly apiUrl = 'https://api.linear.app/graphql';
 
   constructor(private readonly apiKey: string) {}
 
-  async getComments(issueId: string): Promise<LinearComment[]> {
+  async getComments(issueId: string): Promise<LinearIssueWithComments> {
     const query = `
       query GetIssueComments($issueId: String!) {
         issue(id: $issueId) {
+          description
           comments {
             nodes {
               id
@@ -81,10 +87,11 @@ export class LinearComments {
       throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
     }
 
-    const comments = data.data?.issue?.comments?.nodes || [];
+    const issue = data.data?.issue;
+    const comments = issue?.comments?.nodes || [];
     logger.debug(`Fetched ${comments.length} comments from Linear issue ${issueId}`);
 
-    return comments;
+    return { description: issue?.description ?? null, comments };
   }
 
   async getAuthenticatedUser(): Promise<string[] | null> {

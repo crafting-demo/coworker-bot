@@ -11,7 +11,7 @@ export class LinearReactor implements Reactor {
 
   async getLastComment(): Promise<{ author: string; body: string } | null> {
     try {
-      const comments = await this.comments.getComments(this.issueId);
+      const { comments } = await this.comments.getComments(this.issueId);
 
       if (comments.length === 0) {
         logger.debug(`No comments found for Linear issue ${this.issueId}`);

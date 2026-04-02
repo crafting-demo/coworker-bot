@@ -295,6 +295,7 @@ workspaces:
               prompts:
                 jira: ./config/event-prompt-jira.hbs
                 slack: ./config/event-prompt-slack.hbs
+                linear: ./config/event-prompt-linear.hbs
               useStdin: true
               followUp: true
             deduplication:

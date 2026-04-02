@@ -19,7 +19,7 @@ function makeReactor(
   } = {}
 ): LinearReactor {
   const mockComments: Partial<InstanceType<typeof LinearComments>> = {
-    getComments: async () => opts.comments ?? [],
+    getComments: async () => ({ description: null, comments: opts.comments ?? [] }),
     postComment: async () => {
       if (opts.postShouldThrow) throw opts.postShouldThrow;
       return opts.postShouldReturn ?? 'comment-id-123';

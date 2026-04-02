@@ -89,6 +89,13 @@ export interface NormalizedEvent {
       url?: string;
     };
 
+    /** Full comment history (fetched by provider for full context) */
+    comments?: Array<{
+      body: string;
+      author: string;
+      createdAt?: string;
+    }>;
+
     /** Check run information (when event is triggered by a failed check) */
     check?: {
       /** Name of the check (e.g. "CI / build", "test (ubuntu)") */

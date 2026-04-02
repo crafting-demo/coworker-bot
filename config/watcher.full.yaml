@@ -74,9 +74,10 @@ commandExecutor:
   # Option 2: Provider-specific templates (for setups with different platform workflows)
   # Use this when you have providers with fundamentally different workflows:
   # prompts:
-  #   slack: ./config/event-prompt-slack.hbs  # Slack's conversational workflow
-  #   jira: ./config/event-prompt-jira.hbs    # Jira issue workflow (no PR fields, full issue keys)
-  # promptTemplateFile: ./config/event-prompt.hbs  # Fallback for GitHub/Linear
+  #   slack: ./config/event-prompt-slack.hbs    # Slack's conversational workflow
+  #   jira: ./config/event-prompt-jira.hbs      # Jira issue workflow (no PR fields, full issue keys)
+  #   linear: ./config/event-prompt-linear.hbs  # Linear issue workflow (team keys, Linear MCP for context)
+  # promptTemplateFile: ./config/event-prompt.hbs  # Fallback for GitHub
 
   # Option 3: Inline template (not recommended, use files instead)
   # promptTemplate: |
