@@ -201,6 +201,7 @@ export function normalizePolledEvent(item: any): NormalizedEvent {
     actor: {
       username: data.creator?.name || 'unknown',
       id: data.id,
+      ...(data.creator?.email ? { email: data.creator.email } : {}),
     },
     metadata: {
       timestamp: new Date().toISOString(),

@@ -105,6 +105,7 @@ export class LinearPoller {
             }
             creator {
               name
+              email
             }
             labels {
               nodes {
