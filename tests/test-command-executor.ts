@@ -234,6 +234,29 @@ test('CommandExecutor execute() - sets PROMPT env var when useStdin=false', asyn
   assert.equal(comments[1]!.trim(), 'github');
 });
 
+test('CommandExecutor execute() - sets EMAIL env var when actor.email is present', async () => {
+  const executor = new CommandExecutor(baseConfig({ command: 'echo "$EMAIL"', followUp: true }));
+  const { reactor, comments } = makeReactor();
+  const event = makeEvent({ actor: { username: 'user1', id: 1, email: 'user@example.com' } });
+  await executor.execute('evt-1', 'display', event, reactor);
+  assert.equal(comments[1]!.trim(), 'user@example.com');
+});
+
+test('CommandExecutor execute() - does not set EMAIL env var when actor.email is absent', async () => {
+  const saved = process.env['EMAIL'];
+  delete process.env['EMAIL'];
+  try {
+    const executor = new CommandExecutor(
+      baseConfig({ command: 'printenv EMAIL || echo "not-set"', followUp: true })
+    );
+    const { reactor, comments } = makeReactor();
+    await executor.execute('evt-1', 'display', makeEvent(), reactor);
+    assert.equal(comments[1]!.trim(), 'not-set');
+  } finally {
+    if (saved !== undefined) process.env['EMAIL'] = saved;
+  }
+});
+
 test('CommandExecutor execute() - does not set PROMPT env var when useStdin=true', async () => {
   // Temporarily remove PROMPT from the test process so it cannot bleed into the subprocess
   const saved = process.env['PROMPT'];
