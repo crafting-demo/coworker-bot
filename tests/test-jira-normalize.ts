@@ -452,3 +452,77 @@ test('normalizePolledIssue - raw is the full issue object', () => {
   const event = normalizePolledIssue(polledIssue as any);
   assert.deepEqual(event.raw, polledIssue);
 });
+
+// ─── actor.email mapping ───────────────────────────────────────────────────────
+
+test('normalizeWebhookIssueEvent - actor.email from payload.user.emailAddress', () => {
+  const event = normalizeWebhookIssueEvent(issueCreatedPayload as any, 'delivery-email-1');
+  assert.equal(event.actor.email, 'alice@example.com');
+});
+
+test('normalizeWebhookIssueEvent - actor.email absent when payload.user has no emailAddress', () => {
+  const payload = {
+    ...issueCreatedPayload,
+    user: { accountId: 'acc-alice', displayName: 'Alice Smith' },
+  };
+  const event = normalizeWebhookIssueEvent(payload as any, 'delivery-email-2');
+  assert.equal(event.actor.email, undefined);
+});
+
+test('normalizeWebhookIssueEvent - actor.email from reporter when payload.user absent', () => {
+  const payload = {
+    ...issueCreatedPayload,
+    user: undefined,
+    issue: {
+      ...issueCreatedPayload.issue,
+      fields: {
+        ...issueCreatedPayload.issue.fields,
+        reporter: {
+          accountId: 'acc-alice',
+          displayName: 'Alice Smith',
+          emailAddress: 'alice@example.com',
+        },
+      },
+    },
+  };
+  const event = normalizeWebhookIssueEvent(payload as any, 'delivery-email-3');
+  assert.equal(event.actor.email, 'alice@example.com');
+});
+
+test('normalizeWebhookCommentEvent - actor.email from comment.author.emailAddress', () => {
+  const payload = {
+    ...commentCreatedPayload,
+    comment: {
+      ...commentCreatedPayload.comment,
+      author: { accountId: 'acc-bob', displayName: 'Bob Jones', emailAddress: 'bob@example.com' },
+    },
+  };
+  const event = normalizeWebhookCommentEvent(payload as any, 'delivery-email-4');
+  assert.equal(event.actor.email, 'bob@example.com');
+});
+
+test('normalizeWebhookCommentEvent - actor.email absent when comment author has no emailAddress', () => {
+  const event = normalizeWebhookCommentEvent(commentCreatedPayload as any, 'delivery-email-5');
+  assert.equal(event.actor.email, undefined);
+});
+
+test('normalizePolledIssue - actor.email from reporter.emailAddress', () => {
+  const issue = {
+    ...polledIssue,
+    fields: {
+      ...polledIssue.fields,
+      reporter: {
+        accountId: 'acc-alice',
+        displayName: 'Alice Smith',
+        emailAddress: 'alice@example.com',
+      },
+    },
+  };
+  const event = normalizePolledIssue(issue as any);
+  assert.equal(event.actor.email, 'alice@example.com');
+});
+
+test('normalizePolledIssue - actor.email absent when reporter has no emailAddress', () => {
+  const event = normalizePolledIssue(polledIssue as any);
+  assert.equal(event.actor.email, undefined);
+});

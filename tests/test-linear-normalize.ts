@@ -356,3 +356,65 @@ test('normalizeCommentEvent - empty labels on parent issue has no labels field',
   const event = normalizeCommentEvent(payload as any, 'webhook-id-c10');
   assert.equal(event.resource.labels, undefined);
 });
+
+// --- actor.email mapping ---
+
+test('normalizeWebhookEvent - actor.email from payload.actor.email', () => {
+  const event = normalizeWebhookEvent(issueCreatedPayload as any, 'webhook-email-1');
+  assert.equal(event.actor.email, 'alice@example.com');
+});
+
+test('normalizeWebhookEvent - actor.email absent when payload.actor is absent', () => {
+  const payload = { ...issueCreatedPayload, actor: undefined };
+  const event = normalizeWebhookEvent(payload as any, 'webhook-email-2');
+  assert.equal(event.actor.email, undefined);
+});
+
+test('normalizeCommentEvent - actor.email from payload.actor.email', () => {
+  const event = normalizeCommentEvent(commentPayload, 'webhook-email-3');
+  assert.equal(event.actor.email, 'bob@example.com');
+});
+
+test('normalizeCommentEvent - actor.email absent when payload.actor is absent', () => {
+  const payload = { ...commentPayload, actor: undefined };
+  const event = normalizeCommentEvent(payload as any, 'webhook-email-4');
+  assert.equal(event.actor.email, undefined);
+});
+
+test('normalizePolledEvent - actor.email from creator.email', () => {
+  const item = {
+    team: 'ENG',
+    data: {
+      id: 'issue-abc',
+      identifier: 'ENG-42',
+      number: 42,
+      title: 'Fix auth bug',
+      url: 'https://linear.app/org/issue/ENG-42',
+      state: { name: 'In Progress', type: 'started', color: '#f2c94c' },
+      team: { key: 'ENG', name: 'Engineering' },
+      creator: { id: 'user-alice-id', name: 'Alice', email: 'alice@example.com' },
+      labels: { nodes: [] },
+    },
+  };
+  const event = normalizePolledEvent(item);
+  assert.equal(event.actor.email, 'alice@example.com');
+});
+
+test('normalizePolledEvent - actor.email absent when creator has no email', () => {
+  const item = {
+    team: 'ENG',
+    data: {
+      id: 'issue-abc',
+      identifier: 'ENG-42',
+      number: 42,
+      title: 'Fix auth bug',
+      url: 'https://linear.app/org/issue/ENG-42',
+      state: { name: 'In Progress', type: 'started', color: '#f2c94c' },
+      team: { key: 'ENG', name: 'Engineering' },
+      creator: { id: 'user-alice-id', name: 'Alice' },
+      labels: { nodes: [] },
+    },
+  };
+  const event = normalizePolledEvent(item);
+  assert.equal(event.actor.email, undefined);
+});
