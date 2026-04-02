@@ -139,12 +139,13 @@ Once a prompt is rendered, Watcher:
 
 The command receives:
 
-| Variable         | Description                                                                |
-| ---------------- | -------------------------------------------------------------------------- |
-| `EVENT_SHORT_ID` | Clean, unique ID for naming sessions (e.g. `github-owner-repo-123-a1b2c3`) |
-| `EVENT_ID`       | Full event identifier                                                      |
-| `EVENT_SAFE_ID`  | Shell-safe version of `EVENT_ID` (special chars → `_`)                     |
-| `PROMPT`         | Rendered prompt (if `useStdin: false`)                                     |
+| Variable         | Description                                                                   |
+| ---------------- | ----------------------------------------------------------------------------- |
+| `EVENT_SHORT_ID` | Clean, unique ID for naming sessions (e.g. `github-owner-repo-123-a1b2c3`)    |
+| `EVENT_ID`       | Full event identifier                                                         |
+| `EVENT_SAFE_ID`  | Shell-safe version of `EVENT_ID` (special chars → `_`)                        |
+| `EMAIL`          | Email of the actor who triggered the event (when available from the provider) |
+| `PROMPT`         | Rendered prompt (if `useStdin: false`)                                        |
 
 If `useStdin: true`, the prompt is piped to the command's stdin instead of `$PROMPT`.
 
