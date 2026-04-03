@@ -22,7 +22,7 @@ export class LinearReactor implements Reactor {
         return null;
       }
       const last = this.prefetchedComments[this.prefetchedComments.length - 1];
-      return { author: last.author, body: last.body };
+      return { author: last!.author, body: last!.body };
     }
 
     try {
