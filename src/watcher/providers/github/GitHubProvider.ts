@@ -577,8 +577,16 @@ export class GitHubProvider extends BaseProvider {
           return false;
         }
       } else {
-        if (!isBotAssignedInList(resource.assignees, this.botUsernames, (a) => (a as any).login)) {
-          logger.debug(`Skipping ${type} #${resource.number} - bot not assigned`);
+        const botAssigned = isBotAssignedInList(
+          resource.assignees,
+          this.botUsernames,
+          (a) => (a as any).login
+        );
+        // Description mention only counts for newly opened issues (no comments yet)
+        const botMentioned =
+          action === 'opened' && isBotMentionedInText(resource.description, this.botUsernames);
+        if (!botAssigned && !botMentioned) {
+          logger.debug(`Skipping ${type} #${resource.number} - bot not assigned or mentioned`);
           return false;
         }
       }

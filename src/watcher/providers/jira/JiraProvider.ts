@@ -266,14 +266,17 @@ export class JiraProvider extends BaseProvider {
         return;
       }
 
-      if (
-        !isBotAssignedInList(
-          normalizedEvent.resource.assignees,
-          this.botUsernames,
-          (a) => (a as { displayName: string }).displayName
-        )
-      ) {
-        logger.debug(`Skipping Jira issue ${payload.issue.key} - bot not assigned`);
+      const botAssigned = isBotAssignedInList(
+        normalizedEvent.resource.assignees,
+        this.botUsernames,
+        (a) => (a as { displayName: string }).displayName
+      );
+      // Description mention only counts for newly created issues (no comments yet)
+      const botMentioned =
+        payload.webhookEvent === 'jira:issue_created' &&
+        isBotMentionedInText(normalizedEvent.resource.description, this.botUsernames);
+      if (!botAssigned && !botMentioned) {
+        logger.debug(`Skipping Jira issue ${payload.issue.key} - bot not assigned or mentioned`);
         return;
       }
 

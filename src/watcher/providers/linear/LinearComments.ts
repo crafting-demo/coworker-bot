@@ -29,7 +29,7 @@ export class LinearComments {
       query GetIssueComments($issueId: String!) {
         issue(id: $issueId) {
           description
-          comments {
+          comments(orderBy: { field: createdAt, direction: ascending }) {
             nodes {
               id
               body

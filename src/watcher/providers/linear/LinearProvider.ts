@@ -231,10 +231,10 @@ export class LinearProvider extends BaseProvider {
       this.botUsernames,
       (a) => (a as any).name
     );
-    const botMentioned = isBotMentionedInText(
-      normalizedEvent.resource.description,
-      this.botUsernames
-    );
+    // Description mention only counts for newly created issues (no comments yet)
+    const botMentioned =
+      payload.action === 'create' &&
+      isBotMentionedInText(normalizedEvent.resource.description, this.botUsernames);
     if (!botAssigned && !botMentioned) {
       logger.debug(
         `Skipping Linear issue ${payload.data.identifier} - bot not assigned or mentioned`
