@@ -6,10 +6,25 @@ export class LinearReactor implements Reactor {
   constructor(
     private readonly comments: LinearComments,
     private readonly issueId: string,
-    private readonly botUsernames: string[]
+    private readonly botUsernames: string[],
+    private readonly prefetchedComments?: Array<{
+      body: string;
+      author: string;
+      createdAt?: string;
+    }>
   ) {}
 
   async getLastComment(): Promise<{ author: string; body: string } | null> {
+    // Use pre-fetched comments when available to avoid a redundant API call
+    if (this.prefetchedComments !== undefined) {
+      if (this.prefetchedComments.length === 0) {
+        logger.debug(`No comments found for Linear issue ${this.issueId} (prefetched)`);
+        return null;
+      }
+      const last = this.prefetchedComments[this.prefetchedComments.length - 1];
+      return { author: last.author, body: last.body };
+    }
+
     try {
       const { comments } = await this.comments.getComments(this.issueId);
 

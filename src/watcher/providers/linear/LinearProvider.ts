@@ -202,11 +202,11 @@ export class LinearProvider extends BaseProvider {
         return;
       }
       const issueId = commentPayload.data.issue.id;
-      const reactor = new LinearReactor(this.comments, issueId, this.botUsernames);
       const normalizedEvent = normalizeCommentEvent(commentPayload, webhookId);
       const ctx = await this.fetchIssueContext(issueId);
       if (ctx.description !== null) normalizedEvent.resource.description = ctx.description;
       normalizedEvent.resource.comments = ctx.comments;
+      const reactor = new LinearReactor(this.comments, issueId, this.botUsernames, ctx.comments);
       await eventHandler(normalizedEvent, reactor);
       return;
     }
@@ -245,7 +245,7 @@ export class LinearProvider extends BaseProvider {
     const ctx = await this.fetchIssueContext(issueId);
     if (ctx.description !== null) normalizedEvent.resource.description = ctx.description;
     normalizedEvent.resource.comments = ctx.comments;
-    const reactor = new LinearReactor(this.comments, issueId, this.botUsernames);
+    const reactor = new LinearReactor(this.comments, issueId, this.botUsernames, ctx.comments);
     await eventHandler(normalizedEvent, reactor);
   }
 
@@ -349,7 +349,7 @@ export class LinearProvider extends BaseProvider {
       const ctx = await this.fetchIssueContext(issueId);
       if (ctx.description !== null) normalizedEvent.resource.description = ctx.description;
       normalizedEvent.resource.comments = ctx.comments;
-      const reactor = new LinearReactor(this.comments, issueId, this.botUsernames);
+      const reactor = new LinearReactor(this.comments, issueId, this.botUsernames, ctx.comments);
 
       logger.debug(`Calling event handler for issue ${item.data.identifier}`);
       await eventHandler(normalizedEvent, reactor);
