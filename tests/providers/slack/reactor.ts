@@ -1,12 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SlackReactor } from '../../../src/watcher/providers/slack/SlackReactor.js';
-import type { SlackComments } from '../../../src/watcher/providers/slack/SlackComments.js';
+import type {
+  SlackComments,
+  SlackMessage,
+} from '../../../src/watcher/providers/slack/SlackComments.js';
 
 function makeReactor(
   opts: {
     botUsernames?: string[];
-    lastMessage?: { user: string; text: string } | null;
+    messages?: SlackMessage[];
     postShouldReturn?: string;
     postShouldThrow?: Error;
     channel?: string;
@@ -14,7 +17,7 @@ function makeReactor(
   } = {}
 ): SlackReactor {
   const mockComments: Partial<InstanceType<typeof SlackComments>> = {
-    getLastMessage: async () => opts.lastMessage ?? null,
+    getMessages: async () => opts.messages ?? [],
     postMessage: async () => {
       if (opts.postShouldThrow) throw opts.postShouldThrow;
       return opts.postShouldReturn ?? '1609459200.000100';
@@ -63,13 +66,13 @@ test('SlackReactor.isBotAuthor - empty list always returns false', () => {
 // --- getLastComment() ---
 
 test('SlackReactor.getLastComment - returns null when there are no messages', async () => {
-  const reactor = makeReactor({ lastMessage: null });
+  const reactor = makeReactor({ messages: [] });
   assert.equal(await reactor.getLastComment(), null);
 });
 
 test('SlackReactor.getLastComment - maps Slack user and text to author and body', async () => {
   const reactor = makeReactor({
-    lastMessage: { user: 'U12345', text: 'Hello from Slack' },
+    messages: [{ ts: '1000', user: 'U12345', text: 'Hello from Slack' }],
   });
   const result = await reactor.getLastComment();
   assert.ok(result !== null);
@@ -77,9 +80,22 @@ test('SlackReactor.getLastComment - maps Slack user and text to author and body'
   assert.equal(result.body, 'Hello from Slack');
 });
 
+test('SlackReactor.getLastComment - returns the last message when multiple exist', async () => {
+  const reactor = makeReactor({
+    messages: [
+      { ts: '1000', user: 'U11111', text: 'First' },
+      { ts: '2000', user: 'U22222', text: 'Last' },
+    ],
+  });
+  const result = await reactor.getLastComment();
+  assert.ok(result !== null);
+  assert.equal(result.author, 'U22222');
+  assert.equal(result.body, 'Last');
+});
+
 test('SlackReactor.getLastComment - propagates errors from Slack API', async () => {
   const mockComments = {
-    getLastMessage: async () => {
+    getMessages: async () => {
       throw new Error('channel_not_found');
     },
   } as unknown as InstanceType<typeof SlackComments>;
