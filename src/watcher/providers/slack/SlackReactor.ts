@@ -1,4 +1,4 @@
-import type { Reactor } from '../../types/index.js';
+import type { Reactor, NormalizedEvent } from '../../types/index.js';
 import type { SlackComments } from './SlackComments.js';
 import { logger } from '../../utils/logger.js';
 
@@ -34,6 +34,23 @@ export class SlackReactor implements Reactor {
     } catch (error) {
       logger.error('Failed to get last message from Slack', error);
       throw error;
+    }
+  }
+
+  /**
+   * Enrich the normalized event with the full thread conversation history needed
+   * for prompt rendering.  Called by the Watcher after the dedup check passes, so
+   * the expensive conversations.replies fetch is skipped for duplicate events.
+   */
+  async enrichEvent(event: NormalizedEvent): Promise<void> {
+    try {
+      const history = await this.comments.getConversationHistory(this.channel, this.threadTs || '');
+      if (history) {
+        event.resource.description = history;
+      }
+    } catch (error) {
+      logger.warn('Failed to enrich Slack event with conversation history', error);
+      // Non-fatal: prompt will render with whatever context is already in the event
     }
   }
 

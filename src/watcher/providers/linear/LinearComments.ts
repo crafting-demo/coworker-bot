@@ -2,7 +2,7 @@ import { withExponentialRetry } from '../../utils/retry.js';
 import { logger } from '../../utils/logger.js';
 import { fetchWithTimeout } from '../../utils/fetchWithTimeout.js';
 
-interface LinearComment {
+export interface LinearComment {
   id: string;
   body: string;
   user: {
