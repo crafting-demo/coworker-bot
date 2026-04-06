@@ -215,16 +215,6 @@ export class SlackProvider extends BaseProvider {
     // - If event.thread_ts is undefined: use event.ts to start/continue a thread
     const threadTs = event.thread_ts || event.ts;
 
-    // Fetch thread history for context
-    let history = '';
-    try {
-      history = await this.comments.getConversationHistory(event.channel, threadTs);
-    } catch (error) {
-      logger.warn('Failed to fetch Slack thread history', error);
-    }
-
-    const reactor = new SlackReactor(this.comments, event.channel, threadTs, this.botUsernames);
-
     // Enrich event with actor info from Slack users.info (requires users:read.email scope for email)
     const actorInfo = await this.comments.getUserInfo(event.user);
     if (actorInfo.email)
@@ -232,13 +222,19 @@ export class SlackProvider extends BaseProvider {
     if (actorInfo.username)
       logger.debug(`Resolved Slack user ${event.user} display name: ${actorInfo.username}`);
 
-    // Normalize Slack event for template rendering
+    // Normalize Slack event for template rendering.
+    // Thread history (resource.description) is intentionally left empty here and
+    // populated later by SlackReactor.enrichEvent() — called by the Watcher only
+    // after the dedup check passes, so we avoid the conversations.replies fetch
+    // for duplicate events.
     const normalizedEvent = normalizeWebhookEvent(
       payload,
-      history,
+      undefined,
       actorInfo.email,
       actorInfo.username
     );
+
+    const reactor = new SlackReactor(this.comments, event.channel, threadTs, this.botUsernames);
 
     await eventHandler(normalizedEvent, reactor);
   }
@@ -271,21 +267,6 @@ export class SlackProvider extends BaseProvider {
         // - If mention.threadTs is undefined: use mention.ts to start/continue a thread
         const threadTs = mention.threadTs || mention.ts;
 
-        // Fetch thread history for context
-        let history = '';
-        try {
-          history = await this.comments.getConversationHistory(mention.channel, threadTs);
-        } catch (error) {
-          logger.warn('Failed to fetch Slack thread history', error);
-        }
-
-        const reactor = new SlackReactor(
-          this.comments,
-          mention.channel,
-          threadTs,
-          this.botUsernames
-        );
-
         // Enrich event with actor info from Slack users.info (requires users:read.email scope for email)
         const actorInfo = await this.comments.getUserInfo(mention.user);
         if (actorInfo.email)
@@ -293,12 +274,21 @@ export class SlackProvider extends BaseProvider {
         if (actorInfo.username)
           logger.debug(`Resolved Slack user ${mention.user} display name: ${actorInfo.username}`);
 
-        // Normalize polled mention for template rendering
+        // Normalize polled mention for template rendering.
+        // Thread history is populated later by SlackReactor.enrichEvent() to avoid
+        // fetching it for duplicate events.
         const normalizedEvent = normalizePolledMention(
           mention,
-          history,
+          undefined,
           actorInfo.email,
           actorInfo.username
+        );
+
+        const reactor = new SlackReactor(
+          this.comments,
+          mention.channel,
+          threadTs,
+          this.botUsernames
         );
 
         await eventHandler(normalizedEvent, reactor);

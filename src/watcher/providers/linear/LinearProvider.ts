@@ -185,6 +185,15 @@ export class LinearProvider extends BaseProvider {
     // Comment events: check parent issue state + bot mention
     if (payload.type === 'Comment') {
       const commentPayload = payload as unknown as LinearCommentPayload;
+
+      // Only process newly created comments — updated/removed comments should not re-trigger the agent
+      if (commentPayload.action !== 'create') {
+        logger.debug(
+          `Skipping Linear comment - action is '${commentPayload.action}', only 'create' is processed`
+        );
+        return;
+      }
+
       const issueState = commentPayload.data.issue?.state?.name;
       if (
         issueState &&
@@ -203,10 +212,7 @@ export class LinearProvider extends BaseProvider {
       }
       const issueId = commentPayload.data.issue.id;
       const normalizedEvent = normalizeCommentEvent(commentPayload, webhookId);
-      const ctx = await this.fetchIssueContext(issueId);
-      if (ctx.description !== null) normalizedEvent.resource.description = ctx.description;
-      normalizedEvent.resource.comments = ctx.comments;
-      const reactor = new LinearReactor(this.comments, issueId, this.botUsernames, ctx.comments);
+      const reactor = new LinearReactor(this.comments, issueId, this.botUsernames);
       await eventHandler(normalizedEvent, reactor);
       return;
     }
@@ -242,32 +248,8 @@ export class LinearProvider extends BaseProvider {
       return;
     }
 
-    const ctx = await this.fetchIssueContext(issueId);
-    if (ctx.description !== null) normalizedEvent.resource.description = ctx.description;
-    normalizedEvent.resource.comments = ctx.comments;
-    const reactor = new LinearReactor(this.comments, issueId, this.botUsernames, ctx.comments);
+    const reactor = new LinearReactor(this.comments, issueId, this.botUsernames);
     await eventHandler(normalizedEvent, reactor);
-  }
-
-  private async fetchIssueContext(issueId: string): Promise<{
-    description: string | null;
-    comments: Array<{ body: string; author: string; createdAt?: string }>;
-  }> {
-    if (!this.comments) return { description: null, comments: [] };
-    try {
-      const { description, comments } = await this.comments.getComments(issueId);
-      return {
-        description,
-        comments: comments.map((c) => ({
-          body: c.body,
-          author: c.user.name,
-          createdAt: c.createdAt,
-        })),
-      };
-    } catch (error) {
-      logger.warn(`Failed to fetch issue context for Linear issue ${issueId}`, error);
-      return { description: null, comments: [] };
-    }
   }
 
   private shouldSkipByState(stateName: string, states: string[], skipStates: string[]): boolean {
@@ -346,10 +328,7 @@ export class LinearProvider extends BaseProvider {
 
       logger.debug(`Creating reactor for issue ${item.data.identifier}`);
 
-      const ctx = await this.fetchIssueContext(issueId);
-      if (ctx.description !== null) normalizedEvent.resource.description = ctx.description;
-      normalizedEvent.resource.comments = ctx.comments;
-      const reactor = new LinearReactor(this.comments, issueId, this.botUsernames, ctx.comments);
+      const reactor = new LinearReactor(this.comments, issueId, this.botUsernames);
 
       logger.debug(`Calling event handler for issue ${item.data.identifier}`);
       await eventHandler(normalizedEvent, reactor);

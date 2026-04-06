@@ -152,6 +152,13 @@ export class Watcher extends WatcherEventEmitter {
           return;
         }
 
+        // Fetch full context (e.g. comment history, full description) now that we know
+        // the event should be processed.  Providers that defer expensive API calls to
+        // this hook avoid fetching context for duplicate or filtered-out events.
+        if (reactor.enrichEvent) {
+          await reactor.enrichEvent(event);
+        }
+
         // Emit event to subscribers
         logger.debug(`Emitting event from ${providerName}`);
         this.emit('event', providerName, event);

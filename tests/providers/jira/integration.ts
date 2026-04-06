@@ -140,3 +140,36 @@ test('JiraProvider: skips comment_created event from a human that does not menti
   await provider.handleWebhook({}, payload, handler);
   assert.equal(called, false, 'handler should not be called when bot is not mentioned');
 });
+
+test('JiraProvider: comment_updated mentioning bot fires handler with action comment_updated', async () => {
+  const { provider } = await makeProvider();
+  const events: Array<{ action: string }> = [];
+  const handler = async (event: { action: string }) => {
+    events.push(event);
+  };
+
+  const payload = {
+    ...makeCommentPayload(HUMAN_ACCOUNT_ID, 'Alice', `@${BOT_DISPLAY_NAME} please fix this`),
+    webhookEvent: 'comment_updated' as const,
+  };
+
+  await provider.handleWebhook({}, payload, handler);
+  assert.equal(events.length, 1, 'handler should be called for comment_updated with bot mention');
+  assert.equal(events[0]!.action, 'comment_updated');
+});
+
+test('JiraProvider: comment_deleted is not in COMMENT_EVENTS and is silently ignored', async () => {
+  const { provider } = await makeProvider();
+  let called = false;
+  const handler = async () => {
+    called = true;
+  };
+
+  const payload = {
+    ...makeCommentPayload(HUMAN_ACCOUNT_ID, 'Alice', `@${BOT_DISPLAY_NAME} please fix this`),
+    webhookEvent: 'comment_deleted' as const,
+  };
+
+  await provider.handleWebhook({}, payload, handler);
+  assert.equal(called, false, 'comment_deleted webhooks should be ignored entirely');
+});

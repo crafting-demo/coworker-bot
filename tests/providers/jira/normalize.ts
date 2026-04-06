@@ -388,6 +388,23 @@ test('normalizeWebhookCommentEvent - raw is the full payload', () => {
   assert.deepEqual(event.raw, commentCreatedPayload);
 });
 
+test('normalizeWebhookCommentEvent - comment_created maps to action comment', () => {
+  const event = normalizeWebhookCommentEvent(commentCreatedPayload as any, 'delivery-c10');
+  assert.equal(event.action, 'comment');
+});
+
+test('normalizeWebhookCommentEvent - comment_updated maps to action comment_updated', () => {
+  const payload = { ...commentCreatedPayload, webhookEvent: 'comment_updated' };
+  const event = normalizeWebhookCommentEvent(payload as any, 'delivery-c11');
+  assert.equal(event.action, 'comment_updated');
+});
+
+test('normalizeWebhookCommentEvent - comment_deleted maps to action comment_deleted', () => {
+  const payload = { ...commentCreatedPayload, webhookEvent: 'comment_deleted' };
+  const event = normalizeWebhookCommentEvent(payload as any, 'delivery-c12');
+  assert.equal(event.action, 'comment_deleted');
+});
+
 // ─── normalizePolledIssue ─────────────────────────────────────────────────────
 
 test('normalizePolledIssue - core fields', () => {

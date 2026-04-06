@@ -1,39 +1,33 @@
-import type { Reactor } from '../../types/index.js';
-import type { LinearComments } from './LinearComments.js';
+import type { Reactor, NormalizedEvent } from '../../types/index.js';
+import type { LinearComments, LinearIssueWithComments } from './LinearComments.js';
 import { logger } from '../../utils/logger.js';
 
 export class LinearReactor implements Reactor {
+  /**
+   * Cached result of getComments() — populated during the dedup check so that
+   * enrichEvent() can reuse it without a second API call.
+   */
+  private cachedIssue?: LinearIssueWithComments;
+
   constructor(
     private readonly comments: LinearComments,
     private readonly issueId: string,
-    private readonly botUsernames: string[],
-    private readonly prefetchedComments?: Array<{
-      body: string;
-      author: string;
-      createdAt?: string;
-    }>
+    private readonly botUsernames: string[]
   ) {}
 
   async getLastComment(): Promise<{ author: string; body: string } | null> {
-    // Use pre-fetched comments when available to avoid a redundant API call
-    if (this.prefetchedComments !== undefined) {
-      if (this.prefetchedComments.length === 0) {
-        logger.debug(`No comments found for Linear issue ${this.issueId} (prefetched)`);
-        return null;
-      }
-      const last = this.prefetchedComments[this.prefetchedComments.length - 1];
-      return { author: last!.author, body: last!.body };
-    }
-
     try {
-      const { comments } = await this.comments.getComments(this.issueId);
+      const issueData = await this.comments.getComments(this.issueId);
+      // Cache so enrichEvent() can reuse without another API call
+      this.cachedIssue = issueData;
+
+      const { comments } = issueData;
 
       if (comments.length === 0) {
         logger.debug(`No comments found for Linear issue ${this.issueId}`);
         return null;
       }
 
-      // Get the last comment
       const lastComment = comments[comments.length - 1];
 
       if (!lastComment) {
@@ -62,6 +56,32 @@ export class LinearReactor implements Reactor {
     } catch (error) {
       logger.error('Failed to get last comment from Linear', error);
       throw error;
+    }
+  }
+
+  /**
+   * Enrich the normalized event with the full issue context (description and
+   * comment history) needed for prompt rendering.  Uses the cached getComments()
+   * result from the preceding dedup check, so no additional API call is made.
+   */
+  async enrichEvent(event: NormalizedEvent): Promise<void> {
+    try {
+      const issueData = this.cachedIssue ?? (await this.comments.getComments(this.issueId));
+      if (!this.cachedIssue) {
+        this.cachedIssue = issueData;
+      }
+
+      if (issueData.description !== null) {
+        event.resource.description = issueData.description;
+      }
+      event.resource.comments = issueData.comments.map((c) => ({
+        body: c.body,
+        author: c.user.name,
+        createdAt: c.createdAt,
+      }));
+    } catch (error) {
+      logger.warn(`Failed to enrich event with Linear issue context for ${this.issueId}`, error);
+      // Non-fatal: prompt will render with whatever context is already in the event
     }
   }
 

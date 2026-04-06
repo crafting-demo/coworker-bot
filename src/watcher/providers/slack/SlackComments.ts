@@ -3,7 +3,7 @@ import { logger } from '../../utils/logger.js';
 import { fetchWithTimeout } from '../../utils/fetchWithTimeout.js';
 import type { SlackFile } from './SlackNormalizer.js';
 
-interface SlackMessage {
+export interface SlackMessage {
   ts: string;
   text: string;
   user: string;
@@ -59,28 +59,12 @@ export class SlackComments {
   }
 
   /**
-   * Get the last message in a channel or thread.
-   * Used for deduplication to check if bot already responded.
+   * Fetch all messages in a channel thread (or a standalone message by ts).
+   * Used by SlackReactor for both deduplication and conversation history — a single
+   * call whose result is cached so conversations.replies is hit only once per event.
    */
-  async getLastMessage(
-    channel: string,
-    threadTs?: string
-  ): Promise<{ user: string; text: string } | null> {
-    const messages = await this.getReplies(channel, threadTs || '');
-
-    if (messages.length === 0) {
-      return null;
-    }
-
-    const lastMessage = messages[messages.length - 1];
-    if (!lastMessage) {
-      return null;
-    }
-
-    return {
-      user: lastMessage.user,
-      text: lastMessage.text,
-    };
+  async getMessages(channel: string, threadTs: string): Promise<SlackMessage[]> {
+    return this.getReplies(channel, threadTs);
   }
 
   /**
@@ -242,33 +226,5 @@ export class SlackComments {
       logger.warn(`Failed to fetch Slack user info for ${userId}`, error);
       return {};
     }
-  }
-
-  /**
-   * Get the full conversation history of a thread.
-   * Returns formatted string: "@user: message"
-   */
-  async getConversationHistory(channel: string, threadTs: string): Promise<string> {
-    const messages = await this.getReplies(channel, threadTs);
-
-    if (messages.length === 0) {
-      return '';
-    }
-
-    return messages
-      .map((m) => {
-        let line = `[${m.ts}] <@${m.user}>: ${m.text}`;
-        if (m.files?.length) {
-          const fileList = m.files
-            .map(
-              (f) =>
-                `${f.name} (${f.filetype || f.mimetype || 'file'}): ${f.url_private || f.permalink || ''}`
-            )
-            .join(', ');
-          line += `\n[Attachments: ${fileList}]`;
-        }
-        return line;
-      })
-      .join('\n\n');
   }
 }
