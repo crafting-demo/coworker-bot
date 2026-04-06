@@ -346,6 +346,23 @@ test('normalizeCommentEvent - no user falls back to unknown actor', () => {
   assert.equal(event.resource.comment?.author, 'unknown');
 });
 
+test('normalizeCommentEvent - create action maps to comment', () => {
+  const event = normalizeCommentEvent(commentPayload, 'webhook-id-action-1');
+  assert.equal(event.action, 'comment');
+});
+
+test('normalizeCommentEvent - update action maps to comment_update', () => {
+  const payload = { ...commentPayload, action: 'update' };
+  const event = normalizeCommentEvent(payload as any, 'webhook-id-action-2');
+  assert.equal(event.action, 'comment_update');
+});
+
+test('normalizeCommentEvent - remove action maps to comment_remove', () => {
+  const payload = { ...commentPayload, action: 'remove' };
+  const event = normalizeCommentEvent(payload as any, 'webhook-id-action-3');
+  assert.equal(event.action, 'comment_remove');
+});
+
 test('normalizeCommentEvent - empty labels on parent issue has no labels field', () => {
   const payload = {
     ...commentPayload,

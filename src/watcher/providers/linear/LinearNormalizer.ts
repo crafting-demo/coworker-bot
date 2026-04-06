@@ -157,11 +157,15 @@ export function normalizeCommentEvent(
   };
   if (payload.actor?.email) actorObj.email = payload.actor.email;
 
+  // Map Linear comment actions to normalized action names.
+  // 'create' → 'comment' (primary trigger action); 'update'/'remove' preserved for observability.
+  const action = payload.action === 'create' ? 'comment' : `comment_${payload.action}`;
+
   return {
     id: eventId,
     provider: 'linear',
     type: 'issue',
-    action: 'comment',
+    action,
     resource,
     actor: actorObj,
     metadata: {

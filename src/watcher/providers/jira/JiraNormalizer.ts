@@ -229,11 +229,15 @@ export function normalizeWebhookCommentEvent(
   };
   if (comment.author.emailAddress) actorObj.email = comment.author.emailAddress;
 
+  // Map Jira comment webhook events to normalized action names.
+  // 'comment_created' → 'comment' (primary trigger action); others preserved for observability.
+  const action = payload.webhookEvent === 'comment_created' ? 'comment' : payload.webhookEvent;
+
   return {
     id: eventId,
     provider: 'jira',
     type: 'issue',
-    action: 'comment',
+    action,
     resource,
     actor: actorObj,
     metadata: {

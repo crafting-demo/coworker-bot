@@ -227,6 +227,32 @@ test('LinearProvider: comment mentioning bot triggers eventHandler', async () =>
   assert.equal(events[0]!.resource.comment?.author, 'Bob');
 });
 
+test('LinearProvider: comment with action update is skipped even if bot is mentioned', async () => {
+  const { provider } = await makeProvider();
+  let called = false;
+  const handler = async () => {
+    called = true;
+  };
+
+  const payload = { ...makeCommentPayload('@coworker-bot fix this'), action: 'update' };
+  await provider.handleWebhook(WEBHOOK_HEADERS, payload, handler);
+
+  assert.equal(called, false);
+});
+
+test('LinearProvider: comment with action remove is skipped even if bot is mentioned', async () => {
+  const { provider } = await makeProvider();
+  let called = false;
+  const handler = async () => {
+    called = true;
+  };
+
+  const payload = { ...makeCommentPayload('@coworker-bot fix this'), action: 'remove' };
+  await provider.handleWebhook(WEBHOOK_HEADERS, payload, handler);
+
+  assert.equal(called, false);
+});
+
 test('LinearProvider: comment NOT mentioning bot is skipped', async () => {
   const { provider } = await makeProvider();
   let called = false;

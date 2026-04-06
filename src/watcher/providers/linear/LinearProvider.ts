@@ -185,6 +185,15 @@ export class LinearProvider extends BaseProvider {
     // Comment events: check parent issue state + bot mention
     if (payload.type === 'Comment') {
       const commentPayload = payload as unknown as LinearCommentPayload;
+
+      // Only process newly created comments — updated/removed comments should not re-trigger the agent
+      if (commentPayload.action !== 'create') {
+        logger.debug(
+          `Skipping Linear comment - action is '${commentPayload.action}', only 'create' is processed`
+        );
+        return;
+      }
+
       const issueState = commentPayload.data.issue?.state?.name;
       if (
         issueState &&
