@@ -190,7 +190,7 @@ containers:
   # Crafting Coding Agent sessions running inside this sandbox.
   # ---------------------------------------------------------------------------
   - name: slack-mcp
-    image: ghcr.io/korotovsky/slack-mcp-server:latest
+    image: ghcr.io/crafting-demo/slack-mcp-server@sha256:2920fd19b35ca70f7b41c80038c5286b62715b2741d473f6c3431e6ec355b9d7
     entrypoint:
       - mcp-server
     args:
@@ -199,6 +199,7 @@ containers:
     env:
       - SLACK_MCP_PORT=8081
       - SLACK_MCP_HOST=0.0.0.0
+      - SLACK_MCP_ENABLE_BLOCK_TEXT_FALLBACK=true
     ports:
       - name: slack
         port: 8081

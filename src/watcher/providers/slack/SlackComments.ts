@@ -7,7 +7,181 @@ interface SlackMessage {
   ts: string;
   text: string;
   user: string;
+  blocks?: SlackMessageBlock[];
+  attachments?: SlackMessageAttachment[];
   files?: SlackFile[];
+  username?: string;
+}
+
+interface SlackTextObject {
+  text?: string;
+}
+
+interface SlackMessageAttachment {
+  blocks?: SlackMessageBlock[];
+}
+
+interface SlackMessageBlock {
+  type?: string;
+  text?: SlackTextObject;
+  fields?: SlackTextObject[];
+  elements?: SlackBlockElement[];
+}
+
+interface SlackBlockElement {
+  type?: string;
+  text?: string;
+  url?: string;
+  name?: string;
+  user_id?: string;
+  channel_id?: string;
+  usergroup_id?: string;
+  range?: string;
+  fallback?: string;
+  elements?: SlackBlockElement[];
+}
+
+function messageText(message: SlackMessage): string {
+  if (message.text.trim() !== '') {
+    return message.text;
+  }
+
+  const parts = [blocksToText(message.blocks), attachmentBlocksToText(message.attachments)].filter(
+    (part) => part !== ''
+  );
+
+  return parts.join('\n');
+}
+
+function attachmentBlocksToText(attachments?: SlackMessageAttachment[]): string {
+  if (!attachments?.length) {
+    return '';
+  }
+
+  return attachments
+    .map((attachment) => blocksToText(attachment.blocks))
+    .filter((text) => text !== '')
+    .join('\n');
+}
+
+function blocksToText(blocks?: SlackMessageBlock[]): string {
+  if (!blocks?.length) {
+    return '';
+  }
+
+  return blocks
+    .map((block) => blockToText(block))
+    .filter((text) => text !== '')
+    .join('\n');
+}
+
+function blockToText(block?: SlackMessageBlock): string {
+  if (!block?.type) {
+    return '';
+  }
+
+  switch (block.type) {
+    case 'header':
+      return textObjectText(block.text);
+    case 'section':
+      return sectionBlockText(block);
+    case 'context':
+      return contextBlockText(block.elements);
+    case 'rich_text':
+      return richTextBlockText(block.elements);
+    default:
+      return '';
+  }
+}
+
+function sectionBlockText(block: SlackMessageBlock): string {
+  const parts = [textObjectText(block.text), ...(block.fields || []).map(textObjectText)].filter(
+    (text) => text !== ''
+  );
+  return parts.join('\n');
+}
+
+function contextBlockText(elements?: SlackBlockElement[]): string {
+  if (!elements?.length) {
+    return '';
+  }
+
+  return elements
+    .map((element) => {
+      if (element.type === 'text' || element.type === 'mrkdwn') {
+        return stringsTrim(element.text);
+      }
+      return '';
+    })
+    .filter((text) => text !== '')
+    .join(' ');
+}
+
+function richTextBlockText(elements?: SlackBlockElement[]): string {
+  if (!elements?.length) {
+    return '';
+  }
+
+  return elements
+    .map((element) => richTextElementText(element))
+    .filter((text) => text !== '')
+    .join('\n');
+}
+
+function richTextElementText(element?: SlackBlockElement): string {
+  if (!element?.type) {
+    return '';
+  }
+
+  switch (element.type) {
+    case 'rich_text_section':
+    case 'rich_text_quote':
+      return richTextSectionText(element.elements);
+    case 'rich_text_preformatted':
+      return richTextSectionText(element.elements);
+    case 'rich_text_list':
+      return (element.elements || [])
+        .map((child) => richTextElementText(child))
+        .filter((text) => text !== '')
+        .join('\n');
+    case 'text':
+      return element.text || '';
+    case 'link':
+      return element.text || element.url || '';
+    case 'emoji':
+      return element.name ? `:${element.name}:` : '';
+    case 'user':
+      return element.user_id ? `<@${element.user_id}>` : '';
+    case 'channel':
+      return element.channel_id ? `<#${element.channel_id}>` : '';
+    case 'usergroup':
+      return element.usergroup_id ? `<!subteam^${element.usergroup_id}>` : '';
+    case 'broadcast':
+      return element.range ? `<!${element.range}>` : '';
+    case 'date':
+      return element.fallback || '';
+    default:
+      return '';
+  }
+}
+
+function richTextSectionText(elements?: SlackBlockElement[]): string {
+  if (!elements?.length) {
+    return '';
+  }
+
+  return elements
+    .map((element) => richTextElementText(element))
+    .filter((text) => text !== '')
+    .join('');
+}
+
+function textObjectText(textObject?: SlackTextObject): string {
+  return stringsTrim(textObject?.text);
+}
+
+function stringsTrim(text?: string): string {
+  return (text || '').trim();
 }
 
 /**
@@ -257,7 +431,7 @@ export class SlackComments {
 
     return messages
       .map((m) => {
-        let line = `[${m.ts}] <@${m.user}>: ${m.text}`;
+        let line = `[${m.ts}] <@${m.user}>: ${messageText(m)}`;
         if (m.files?.length) {
           const fileList = m.files
             .map(
