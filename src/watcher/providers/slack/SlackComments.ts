@@ -6,11 +6,12 @@ import type { SlackFile } from './SlackNormalizer.js';
 interface SlackMessage {
   ts: string;
   text: string;
-  user: string;
+  user?: string;
   blocks?: SlackMessageBlock[];
   attachments?: SlackMessageAttachment[];
   files?: SlackFile[];
   username?: string;
+  bot_id?: string;
 }
 
 interface SlackTextObject {
@@ -18,7 +19,17 @@ interface SlackTextObject {
 }
 
 interface SlackMessageAttachment {
+  fallback?: string;
+  pretext?: string;
+  text?: string;
+  title?: string;
+  fields?: SlackAttachmentField[];
   blocks?: SlackMessageBlock[];
+}
+
+interface SlackAttachmentField {
+  title?: string;
+  value?: string;
 }
 
 interface SlackMessageBlock {
@@ -46,9 +57,11 @@ function messageText(message: SlackMessage): string {
     return message.text;
   }
 
-  const parts = [blocksToText(message.blocks), attachmentBlocksToText(message.attachments)].filter(
-    (part) => part !== ''
-  );
+  const parts = [
+    blocksToText(message.blocks),
+    attachmentBlocksToText(message.attachments),
+    attachmentLegacyText(message.attachments),
+  ].filter((part) => part !== '');
 
   return parts.join('\n');
 }
@@ -62,6 +75,62 @@ function attachmentBlocksToText(attachments?: SlackMessageAttachment[]): string 
     .map((attachment) => blocksToText(attachment.blocks))
     .filter((text) => text !== '')
     .join('\n');
+}
+
+function attachmentLegacyText(attachments?: SlackMessageAttachment[]): string {
+  if (!attachments?.length) {
+    return '';
+  }
+
+  return attachments
+    .map((attachment) => legacyAttachmentText(attachment))
+    .filter((text) => text !== '')
+    .join('\n');
+}
+
+function legacyAttachmentText(attachment?: SlackMessageAttachment): string {
+  if (!attachment) {
+    return '';
+  }
+
+  const parts = [
+    stringsTrim(attachment.title),
+    stringsTrim(attachment.pretext),
+    stringsTrim(attachment.text),
+    attachmentFieldsText(attachment.fields),
+  ].filter((text) => text !== '');
+
+  if (parts.length > 0) {
+    return parts.join('\n');
+  }
+
+  return stringsTrim(attachment.fallback);
+}
+
+function attachmentFieldsText(fields?: SlackAttachmentField[]): string {
+  if (!fields?.length) {
+    return '';
+  }
+
+  return fields
+    .map((field) => attachmentFieldText(field))
+    .filter((text) => text !== '')
+    .join('\n');
+}
+
+function attachmentFieldText(field?: SlackAttachmentField): string {
+  if (!field) {
+    return '';
+  }
+
+  const title = stringsTrim(field.title);
+  const value = stringsTrim(field.value);
+
+  if (title !== '' && value !== '') {
+    return `${title}\n${value}`;
+  }
+
+  return title || value;
 }
 
 function blocksToText(blocks?: SlackMessageBlock[]): string {
@@ -184,6 +253,44 @@ function stringsTrim(text?: string): string {
   return (text || '').trim();
 }
 
+function messageAuthor(message: SlackMessage): string {
+  const user = stringsTrim(message.user);
+  if (user !== '') {
+    return `<@${user}>`;
+  }
+
+  const username = stringsTrim(message.username);
+  if (username !== '') {
+    return username;
+  }
+
+  const botId = stringsTrim(message.bot_id);
+  if (botId !== '') {
+    return `<bot:${botId}>`;
+  }
+
+  return 'unknown';
+}
+
+function messageAuthorId(message: SlackMessage): string {
+  const user = stringsTrim(message.user);
+  if (user !== '') {
+    return user;
+  }
+
+  const username = stringsTrim(message.username);
+  if (username !== '') {
+    return username;
+  }
+
+  const botId = stringsTrim(message.bot_id);
+  if (botId !== '') {
+    return botId;
+  }
+
+  return 'unknown';
+}
+
 /**
  * Slack API client for posting and fetching messages.
  * Uses Slack Web API with Bot OAuth token.
@@ -252,7 +359,7 @@ export class SlackComments {
     }
 
     return {
-      user: lastMessage.user,
+      user: messageAuthorId(lastMessage),
       text: lastMessage.text,
     };
   }
@@ -431,7 +538,7 @@ export class SlackComments {
 
     return messages
       .map((m) => {
-        let line = `[${m.ts}] <@${m.user}>: ${messageText(m)}`;
+        let line = `[${m.ts}] ${messageAuthor(m)}: ${messageText(m)}`;
         if (m.files?.length) {
           const fileList = m.files
             .map(
